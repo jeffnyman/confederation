@@ -1,0 +1,20 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.swp
+TestResults/
+artifacts/
+
+# game data and ROMs never go in the repository: the games live outside it (in ../_wingc), and
+# these catch a copy made by mistake
+GAMEDAT/
+*.iso
+*.tre
+*.vga
+*.wld
+*.pal
+*.mid
+*.rom

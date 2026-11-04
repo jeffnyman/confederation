@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Confederation.Core/Confederation.Core.csproj" />
+    <Project Path="src/Confederation.Player/Confederation.Player.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Confederation.Core.Tests/Confederation.Core.Tests.csproj" />
+  </Folder>
+</Solution>

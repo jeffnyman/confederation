@@ -13,7 +13,7 @@ DOSBox is never wrapped or linked.
 
 ## Status
 
-Planning. Nothing runs yet.
+Planning. The project builds, but nothing runs yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 | Game | Tier |
 |---|---|

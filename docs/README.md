@@ -18,6 +18,8 @@ games.
    for making it, and why Confederation emulates a focused DOS PC in C#.
 2. [The games](the-games.md): what each *Wing Commander* release is, and what can be learned about
    its needs just by inspecting its files.
+3. [Project layout](project-layout.md): how the repository is organized, and why: a core library,
+   a player, strict builds, and tests that run with or without the games.
 
 More notes will follow as the work does: the x86 CPU, the DOS layer, VGA, sound, and each game as
 it comes up.
