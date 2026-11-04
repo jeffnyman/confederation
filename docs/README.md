@@ -20,6 +20,8 @@ games.
    its needs just by inspecting its files.
 3. [Project layout](project-layout.md): how the repository is organized, and why: a core library,
    a player, strict builds, and tests that run with or without the games.
+4. [The x86 CPU](the-x86-cpu.md): why a 386, how the processor is built, how it was tested
+   against 1.7 million instructions captured from a real chip, and what the chip does that its
+   manuals don't say.
 
-More notes will follow as the work does: the x86 CPU, the DOS layer, VGA, sound, and each game as
-it comes up.
+More notes will follow as the work does: the DOS layer, VGA, sound, and each game as it comes up.

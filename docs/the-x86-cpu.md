@@ -1,0 +1,212 @@
+# The x86 CPU
+
+The processor is the largest single part of an emulator, and the part every other part depends on.
+This note covers which processor Confederation emulates and why, how the code is organized, and
+how it was tested against a real chip. It also covers what that testing showed: in about a dozen
+places, the 386 doesn't do what Intel's manuals say it does.
+
+The code is in `src/Confederation.Core/Processors`. The tests are in
+`tests/Confederation.Core.Tests/SingleStepTests.cs`.
+
+## Which processor?
+
+"x86" covers twenty years of chips, and they don't all behave the same. They differ in
+instructions, in undefined behaviors, and in edge cases like what a word access at offset `FFFFh`
+does. So the first question is which chip to be.
+
+Confederation emulates **the Intel 80386, in real mode**. The reasons:
+
+- **It's what the games met.** The games ran on the 286s, 386s and 486s of their day, and most
+  players had a 386 or 486. DOSBox, which GOG ships, behaves like a 386/486. Where chips differ,
+  this is the behavior the games were played on.
+- **Borland's compilers could emit 386 code.** Real-mode programs on a 386 can still use 32-bit
+  registers and the 386's new instructions through prefix bytes. An 8086-only core might trip over
+  them.
+- **One core for every game.** *Wing Commander III* needs the 386's protected mode. Starting with
+  a 386 means that work extends this core instead of replacing it.
+- **There's a test suite captured from a real one.** See below.
+
+The 8086's quirks that later chips changed (`PUSH SP` pushing the decremented value, words wrapping
+at the end of a segment, `POP CS` existing) are not emulated, since the games never saw them.
+
+## Instruction-stepped, not cycle-stepped
+
+Retrograde's 6502 runs one bus cycle at a time, because C64 games depend on exact timing. This
+processor runs **one whole instruction per step**, prefixes and all, including every repetition of
+a `REP MOVSB`.
+
+DOS games of this era ran on machines whose speeds varied tenfold, so they couldn't depend on
+instruction timing. They time themselves with the 8253 timer chip instead. Instruction stepping
+is far simpler to write and to read, and much faster to run. Speed will be governed by counting
+instructions against the timer, which comes with the rest of the machine.
+
+## Real mode in brief
+
+In real mode a **segment register** holds a 16-bit number, and the segment starts at that number
+times 16. An address is written `segment:offset`, so `B800:0010` is physical address
+`B8000 + 10 = B8010`. There are six segment registers: CS for code, SS for the stack, DS for data,
+ES as the destination of string instructions, and FS and GS (new on the 386) as spares.
+
+Each segment has a **limit** of 64 KB. Here the 386 differs from the 8086: an access that runs past
+the limit, like a word at offset `FFFFh`, is a fault, where the 8086 silently wrapped around. A
+fault in the stack segment is a *stack fault* (interrupt 12) and any other is a *general
+protection fault* (interrupt 13).
+
+Two **prefix bytes** reach the 386's 32-bit world from real mode. `66h` makes one instruction use
+32-bit operands (EAX instead of AX), and `67h` makes it use 32-bit addressing, which has a richer
+form: any register as a base, plus a second register scaled by 1, 2, 4 or 8.
+
+## How the code is organized
+
+The class is `Intel386`, split across files by concern:
+
+| File | What it holds |
+|---|---|
+| `ICpuBus.cs` | What the CPU sees of the machine: memory by physical address, and I/O ports |
+| `Intel386.cs` | The registers, `Step()`, and interrupt and fault entry |
+| `Intel386.Memory.cs` | Instruction fetch, ModR/M and SIB decoding, segment-checked memory access, the stack |
+| `Intel386.Execute.cs` | Prefixes and the one-byte opcodes |
+| `Intel386.Extended.cs` | The two-byte (`0Fh`) opcodes, mostly the 386's additions |
+| `Intel386.Strings.cs` | The string instructions and their `REP` prefixes |
+| `Intel386.Alu.cs` | Arithmetic, logic, shifts, multiply, divide, BCD, and the flags they set |
+
+Some design choices worth knowing:
+
+- **Operand sizes are numbers.** Most instructions come in 8-, 16- and 32-bit forms. The helpers
+  take the size in bytes (1, 2 or 4) and mask accordingly. So there's one `Add`, not three.
+- **Flags are computed eagerly.** Each arithmetic instruction computes all its flags at once.
+  Many emulators compute flags lazily (keep the operands and work out a flag only when something
+  reads it) because most flags are never read. That's faster, but harder to read and to get right.
+  At the few million instructions a second these games need, eager is fast enough. Lazy flags stay
+  an option if profiling ever calls for them.
+- **Faults are C# exceptions.** A fault can be found deep inside a memory access in the middle of
+  an instruction. Throwing an exception unwinds straight back to `Step()`, which restores IP and SP
+  and enters the handler. That keeps every memory access free of error checks. Exceptions are slow
+  in .NET, but real-mode programs almost never fault, so the cost doesn't matter.
+- **Faults are restartable.** The handler gets the address of the faulting instruction, prefixes
+  included, and the stack as it was. A `REP` instruction that faults partway keeps the progress
+  it made in CX, SI and DI, as on the chip.
+
+What isn't there yet: protected mode, the floating-point unit (a program that probes for one finds
+none), the trap flag's single-stepping, and the line through which hardware interrupts arrive.
+The interrupt line comes with the interrupt controller, in the next step of the
+[roadmap](../ROADMAP.md).
+
+## Testing against a real chip
+
+### The SingleStepTests suite
+
+[SingleStepTests](https://github.com/SingleStepTests/80386) is a set of CPU tests captured from real
+hardware: a 386EX processor wired to a microcontroller that sets up a random machine state, runs
+one instruction, and records everything. For each opcode, and each combination with the `66h` and
+`67h` prefixes, there are 100 to 2,500 tests. In all that's **941 files and 1,758,700 tests** for
+real mode.
+
+Each test gives:
+
+- the instruction's bytes
+- every register and the relevant memory before
+- the registers and memory that changed after
+- the exception, if the instruction raised one
+- every bus cycle in between, which this processor doesn't check since it isn't cycle-accurate
+
+The tests come in a binary format called **MOO**, a series of chunks each with a four-letter type,
+a length and a payload, gzip-compressed. Its
+[specification](https://github.com/dbalsom/moo/blob/main/doc/moo_format_v1.md) is short, and
+`MooFile.cs` reads it in about 200 lines. Reading the binary format directly beats converting to
+JSON: the whole suite loads and runs in about ten seconds.
+
+### How the tests are run
+
+Each test's instruction is followed by a `HLT`. When the instruction faults, the handler in the
+interrupt table is also a `HLT`. So the harness sets up the state, steps until the processor
+halts, and compares every register and every byte of memory the test mentions.
+
+Three details matter:
+
+1. **Undefined flags are masked.** Where Intel calls a flag "undefined" after an instruction, the
+   tests don't hold the emulator to the chip's value. The masks come from two places: some files
+   carry their own, and the suite's `80386.csv` table lists the undefined flags for every opcode.
+   An early run that missed the table showed hundreds of false failures on instructions like `BT`,
+   whose overflow flag is undefined.
+2. **The pushed flags are masked too.** When an instruction faults, the flags go on the stack, so
+   the same mask applies to those two bytes of memory.
+3. **I/O reads return `FFh`.** Nothing is attached to the test rig's I/O ports, and an empty ISA
+   bus reads as all ones. The exceptions are ports `22h` and `23h`, which are registers inside the
+   386EX itself, not the 386 the games ran on.
+
+The test data is 576 MB and stays out of the repository. The tests look for it in the folder named
+by `CONFEDERATION_TESTDATA`, or in `_testdata` or `_wingc/_testdata` in a folder above the test
+binary. Without it they pass without checking, so CI stays green.
+
+### Chasing one case
+
+The `Trace_one_case` test runs a single case named in an environment variable and prints the
+registers after each step:
+
+```
+CONFEDERATION_CASE=0FAB:19 dotnet test -c Release --filter Trace_one_case
+```
+
+That's how most of the bugs below were found. For behavior that needed a rule worked out, small
+Python scripts read the same files, pulled out every case of one instruction, and checked candidate
+formulas against all of them.
+
+## What the hardware taught
+
+The first run passed 597 of the 941 files. Getting the rest to pass meant fixing ordinary bugs and,
+more interestingly, learning what the 386 actually does where the documentation is wrong or
+silent. Each of these is now in the code, commented where it happens.
+
+**Bugs in my own reading of the documentation:**
+
+- **An interrupt reads its vector before pushing.** Entering a real-mode interrupt pushes FLAGS, CS
+  and IP and loads CS:IP from the interrupt table at address 0. I had the pushes first. In one test
+  the stack sat on top of the interrupt table, so the pushes overwrote the very entry being read.
+  The chip reads the entry first.
+- **`LOCK` is checked against the instruction.** Only read-modify-write instructions with a memory
+  destination may be locked. Anything else is an invalid opcode.
+
+**Where the 386 differs from the manuals:**
+
+| Instruction | The manual | The 386 |
+|---|---|---|
+| `AAA`, `AAS` | The 386 manual: AL ± 6 and AH ± 1 | AX ± 106h, so a carry out of AL moves AH by two |
+| `SHL`, `SHR` on a byte, count 16 or 24 | Carry undefined | Carry as if the count were 8 |
+| `SHR`, count above 1 | Overflow undefined | Overflow clear |
+| `RCR`, any count | Overflow defined for a count of 1 only | Overflow is the XOR of the result's top two bits |
+| 16-bit `SHLD`/`SHRD`, count above 16 | Result and flags undefined | A 32-bit shift with the source repeated (dest:src:src left, src:src:dest right) |
+| SIB byte, no index but a scale | The scale must be 0 | The scale is applied to the base register |
+| `POPAD` | ESP's slot is skipped | ESP's upper half is loaded from it |
+| `PUSHAD` near the segment's end | Faults | Writes from the bottom up, so the registers below the fault are already written |
+| 32-bit `POP` into a segment register | — | Reads only the selector's word, though SP moves by 4 |
+
+The lesson generalizes. **The manual isn't the chip.** Documentation describes the intended
+behavior and calls the rest undefined. The chip always does *something*, and software written and
+tested on real machines may depend on it. A test suite captured from hardware is how an emulator
+finds out what that something is.
+
+## Known differences
+
+24 cases are skipped deliberately, listed in `KnownDifferences` in the tests:
+
+- **The prefetch queue (4 cases).** The 386 reads up to 16 bytes ahead of the instruction it's
+  running. In these tests a `REP STOSW` overwrites the `HLT` after it, but the chip had already
+  fetched the `HLT` and runs it. Confederation has no prefetch queue, so it runs the new bytes. Only
+  self-modifying code can tell the difference, mostly copy protection that uses it to detect
+  debuggers and emulators. DOSBox doesn't model the queue in its normal cores either.
+- **IDIV overflows the 386 misses (9 cases).** Dividing to a negative quotient too big for AL
+  should be a divide error. In a few cases the 386's division microcode fails to notice and returns
+  AL = 80h. No simple rule predicts which. Confederation always raises the error, as the manual
+  says.
+- **`AAM 0`'s flags (10 cases).** `AAM` with a base of 0 is a divide error. The chip leaves the
+  flags from partial work in its microcode, with no rule I could find.
+
+None of these matter to a program that isn't written to probe them.
+
+## Performance
+
+Not yet measured inside a game, and not yet optimized. Every memory access goes through an
+interface call, a byte at a time. The suite runs 1.76 million instructions, along with gzip
+decompression and checking, in about ten seconds, which says nothing precise about speed but rules
+out a disaster. Profiling waits until a game is running.

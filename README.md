@@ -13,7 +13,8 @@ DOSBox is never wrapped or linked.
 
 ## Status
 
-Planning. The project builds, but nothing runs yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+The CPU is done: a 386 in real mode that matches a real chip across 1.76 million captured test
+instructions. Nothing plays yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 | Game | Tier |
 |---|---|

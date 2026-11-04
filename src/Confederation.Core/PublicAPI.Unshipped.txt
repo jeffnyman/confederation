@@ -1,1 +1,52 @@
 #nullable enable
+Confederation.Core.Processors.ICpuBus
+Confederation.Core.Processors.ICpuBus.In(ushort port) -> byte
+Confederation.Core.Processors.ICpuBus.Out(ushort port, byte value) -> void
+Confederation.Core.Processors.ICpuBus.Read(uint address) -> byte
+Confederation.Core.Processors.ICpuBus.Write(uint address, byte value) -> void
+Confederation.Core.Processors.Intel386
+Confederation.Core.Processors.Intel386.Cr0.get -> uint
+Confederation.Core.Processors.Intel386.Cr0.set -> void
+Confederation.Core.Processors.Intel386.Cr3.get -> uint
+Confederation.Core.Processors.Intel386.Cr3.set -> void
+Confederation.Core.Processors.Intel386.Cs.get -> ushort
+Confederation.Core.Processors.Intel386.Cs.set -> void
+Confederation.Core.Processors.Intel386.Dr6.get -> uint
+Confederation.Core.Processors.Intel386.Dr6.set -> void
+Confederation.Core.Processors.Intel386.Dr7.get -> uint
+Confederation.Core.Processors.Intel386.Dr7.set -> void
+Confederation.Core.Processors.Intel386.Ds.get -> ushort
+Confederation.Core.Processors.Intel386.Ds.set -> void
+Confederation.Core.Processors.Intel386.Eax.get -> uint
+Confederation.Core.Processors.Intel386.Eax.set -> void
+Confederation.Core.Processors.Intel386.Ebp.get -> uint
+Confederation.Core.Processors.Intel386.Ebp.set -> void
+Confederation.Core.Processors.Intel386.Ebx.get -> uint
+Confederation.Core.Processors.Intel386.Ebx.set -> void
+Confederation.Core.Processors.Intel386.Ecx.get -> uint
+Confederation.Core.Processors.Intel386.Ecx.set -> void
+Confederation.Core.Processors.Intel386.Edi.get -> uint
+Confederation.Core.Processors.Intel386.Edi.set -> void
+Confederation.Core.Processors.Intel386.Edx.get -> uint
+Confederation.Core.Processors.Intel386.Edx.set -> void
+Confederation.Core.Processors.Intel386.Eflags.get -> uint
+Confederation.Core.Processors.Intel386.Eflags.set -> void
+Confederation.Core.Processors.Intel386.Eip.get -> uint
+Confederation.Core.Processors.Intel386.Eip.set -> void
+Confederation.Core.Processors.Intel386.Es.get -> ushort
+Confederation.Core.Processors.Intel386.Es.set -> void
+Confederation.Core.Processors.Intel386.Esi.get -> uint
+Confederation.Core.Processors.Intel386.Esi.set -> void
+Confederation.Core.Processors.Intel386.Esp.get -> uint
+Confederation.Core.Processors.Intel386.Esp.set -> void
+Confederation.Core.Processors.Intel386.Fs.get -> ushort
+Confederation.Core.Processors.Intel386.Fs.set -> void
+Confederation.Core.Processors.Intel386.Gs.get -> ushort
+Confederation.Core.Processors.Intel386.Gs.set -> void
+Confederation.Core.Processors.Intel386.Halted.get -> bool
+Confederation.Core.Processors.Intel386.Halted.set -> void
+Confederation.Core.Processors.Intel386.Instructions.get -> long
+Confederation.Core.Processors.Intel386.Intel386(Confederation.Core.Processors.ICpuBus! bus) -> void
+Confederation.Core.Processors.Intel386.Ss.get -> ushort
+Confederation.Core.Processors.Intel386.Ss.set -> void
+Confederation.Core.Processors.Intel386.Step() -> void

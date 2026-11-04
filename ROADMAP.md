@@ -5,9 +5,9 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
 
 ## *Wing Commander* and *Wing Commander II*
 
-1. **x86 CPU.** Real mode, with the 8086 instruction set and the 186, 286 and 386 additions that
-   Borland's compilers emit. Checked instruction by instruction against the SingleStepTests suites
-   for the 8088 and 80286, and the 386 where coverage exists.
+1. **x86 CPU.** *Done.* A 386 in real mode, every instruction but the coprocessor's and
+   protected mode's, checked against all 1.76 million cases of the SingleStepTests 80386
+   real-mode suite ([docs/the-x86-cpu.md](docs/the-x86-cpu.md)).
 2. **The DOS layer.** An MZ loader with relocations, and DOS, BIOS and EMS services answered in C#
    (`INT 21h`, `INT 10h`, `INT 16h`, `INT 1Ah`, `INT 67h`) against the game's own folder. A trace of
    every call the games make, which documents what they need. Milestone: `WC.EXE` runs until it
