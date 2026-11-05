@@ -27,10 +27,16 @@ internal sealed class Profile
 
     public bool? SquarePixels { get; set; }
 
+    /// <summary>
+    /// Whether the games' own cheats are on: the player starts the program with the words that
+    /// turn them on (see <see cref="Games.CheatWords"/>).
+    /// </summary>
+    public bool? Cheats { get; set; }
+
     /// <summary>Whether nothing is set.</summary>
     [JsonIgnore]
     public bool IsEmpty => Cycles is null && Music is null && Sound is null && Joystick is null && Mouse is null
-        && Scale is null && Fullscreen is null && SquarePixels is null;
+        && Scale is null && Fullscreen is null && SquarePixels is null && Cheats is null;
 
     /// <summary>The values set in another profile, over this one's.</summary>
     public void Take(Profile other)
@@ -43,6 +49,7 @@ internal sealed class Profile
         Scale = other.Scale ?? Scale;
         Fullscreen = other.Fullscreen ?? Fullscreen;
         SquarePixels = other.SquarePixels ?? SquarePixels;
+        Cheats = other.Cheats ?? Cheats;
     }
 
     /// <summary>What's set, in a line: "music roland, scale 4".</summary>
@@ -77,6 +84,7 @@ internal sealed class Profile
 
         Flag(Fullscreen, "full screen");
         Flag(SquarePixels, "square pixels");
+        Flag(Cheats, "cheats");
         return parts.Count == 0 ? "the defaults" : string.Join(", ", parts);
     }
 }

@@ -142,6 +142,22 @@ public sealed class ProfileTests : IDisposable
     }
 
     [Fact]
+    public void Cheats_put_their_words_before_the_programs_arguments()
+    {
+        Assert.Equal("", Games.Arguments(cheats: false, ""));
+        Assert.Equal("Origin -k", Games.Arguments(cheats: true, ""));
+        Assert.Equal("Origin -k /x", Games.Arguments(cheats: true, "/x"));
+
+        // and they're kept like any other option
+        Assert.Equal(0, Run(Wc1, "--cheats", "--remember"));
+        var profile = Settings.Load(SettingsPath).ProfileOf(Games.Wc1);
+        Assert.True(profile.Cheats);
+        Assert.Equal("cheats", profile.ToString());
+        Assert.Equal(0, Run("wc1", "--no-cheats", "--remember"));
+        Assert.False(Settings.Load(SettingsPath).ProfileOf(Games.Wc1).Cheats);
+    }
+
+    [Fact]
     public void A_saved_state_is_resumed_from_its_file()
     {
         // one for each program, beside the saves rather than in them, where the game would see it

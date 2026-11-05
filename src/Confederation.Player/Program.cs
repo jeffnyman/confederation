@@ -126,6 +126,9 @@ internal static class Program
                 case "--mouse" or "--no-mouse":
                     given.Mouse = args[i] == "--mouse";
                     break;
+                case "--cheats" or "--no-cheats":
+                    given.Cheats = args[i] == "--cheats";
+                    break;
                 case "--sound" or "--no-sound":
                     given.Sound = args[i] == "--sound";
                     break;
@@ -303,7 +306,8 @@ internal static class Program
             }
         }
 
-        machine.Load(game.Program, arguments);
+        bool cheats = profile.Cheats ?? false;
+        machine.Load(game.Program, Games.Arguments(cheats, arguments));
         statePath ??= Games.StateFile(game);
         if (resume)
         {
@@ -321,6 +325,11 @@ internal static class Program
         if (gameName is not null && Games.Named(gameName) is { Note: { } note } named)
         {
             Console.WriteLine($"confederation: {named.Title} is {note}");
+        }
+
+        if (cheats)
+        {
+            Console.WriteLine($"confederation: cheats on ({Games.CheatWords}): in flight, Alt+Del destroys the target and Alt+Ins the enemy wing");
         }
 
         bool running;
@@ -435,6 +444,8 @@ internal static class Program
               --no-mouse         no mouse: the games' pointers move by keyboard or joystick
               --no-sound         no sound
                                  (--joystick, --mouse, --sound: back on)
+              --cheats           the games' own cheats: the ship can't be destroyed, Alt+Del
+                                 destroys the target, Alt+Ins the enemy wing (--no-cheats: off)
               --music <device>   the music device, adlib or roland, written into the game's
                                  settings in the save folder, where it stays (GOG's is adlib)
               --mt32-roms <dir>  where the Roland MT-32's or CM-32L's ROMs are, for roland (by

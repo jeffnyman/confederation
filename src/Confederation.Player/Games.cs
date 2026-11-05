@@ -132,6 +132,19 @@ internal static class Games
     }
 
     /// <summary>
+    /// The words on the command line that turn on the cheats Origin left in both games, and in
+    /// their mission disks: <c>Origin</c>, with a capital O, and <c>-k</c>. Each sets a flag in
+    /// the game's data (observed; see docs/cheats.md). The fans' guides say they make the
+    /// player's ship indestructible, and give keys in flight that destroy the target (Alt+Del)
+    /// and the enemy wing (Alt+Ins).
+    /// </summary>
+    public const string CheatWords = "Origin -k";
+
+    /// <summary>The program's command line: the cheats' words, when they're on, before any given.</summary>
+    public static string Arguments(bool cheats, string given)
+        => !cheats ? given : given.Length == 0 ? CheatWords : $"{CheatWords} {given}";
+
+    /// <summary>
     /// The player's own folder in the user's application data: the settings, the saves and the
     /// MT-32's ROMs go there.
     /// </summary>

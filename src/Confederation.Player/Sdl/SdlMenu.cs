@@ -244,9 +244,12 @@ internal sealed unsafe class SdlMenu : IDisposable
         {
             // a folder's end says the most: it's cut from the front
             Text(12, bottom, Fit(folder, surface->w, fromFront: true), 0xA0, 0xA8, 0xC0);
-            if (selected.Note is { } note)
+            // what's worth knowing before playing: a note, or the cheats being on
+            string? about = selected.Note is { } note ? $"{char.ToUpperInvariant(note[0])}{note[1..]}."
+                : _settings.ProfileOf(selected.Series).Cheats == true ? "Cheats on." : null;
+            if (about is not null)
             {
-                Text(12, bottom + LineHeight, Fit($"{char.ToUpperInvariant(note[0])}{note[1..]}.", surface->w), 0xA0, 0xA8, 0xC0);
+                Text(12, bottom + LineHeight, Fit(about, surface->w), 0xA0, 0xA8, 0xC0);
             }
         }
         else
