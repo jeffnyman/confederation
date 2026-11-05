@@ -23,8 +23,9 @@ through an emulated Sound Blaster, and flies its first mission. [ROADMAP.md](ROA
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
 ```
 
-The game's folder is only read; saves go to a folder of their own. F11 is full screen, F12 full
-speed, Pause pauses, and `--help` lists the rest. `--music roland --mt32-roms <folder>` plays the
+The game's folder is only read; saves go to a folder of their own. A click in the window gives
+the game the mouse (Ctrl+F10 takes it back), F11 is full screen, F12 full speed, Pause pauses, and
+`--help` lists the rest. `--music roland --mt32-roms <folder>` plays the
 music on an emulated Roland MT-32 instead; its ROMs aren't included.
 
 | Game | Tier |

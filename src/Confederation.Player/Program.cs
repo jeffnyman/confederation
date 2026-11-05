@@ -52,6 +52,7 @@ internal static class Program
         bool fullscreen = false;
         bool squarePixels = false;
         bool joystick = true;
+        bool mouse = true;
         bool sound = true;
         bool headless = false;
 
@@ -101,6 +102,9 @@ internal static class Program
                     break;
                 case "--no-joystick":
                     joystick = false;
+                    break;
+                case "--no-mouse":
+                    mouse = false;
                     break;
                 case "--no-sound":
                     sound = false;
@@ -168,6 +172,7 @@ internal static class Program
         {
             InstructionsPerSecond = (cycles ?? game.Cycles) * 1000,
             Log = log is null ? null : log.WriteLine,
+            Mouse = mouse && !headless,
         };
         if (music is not null)
         {
@@ -212,6 +217,7 @@ internal static class Program
                     SquarePixels = squarePixels,
                     Joystick = joystick,
                     Sound = sound,
+                    Mouse = mouse,
                 };
 
                 using var player = new SdlPlayer(machine, options);
@@ -267,6 +273,7 @@ internal static class Program
               --fullscreen       start in full screen
               --square-pixels    square pixels, not the 4:3 picture a monitor showed
               --no-joystick      no joystick on the game port, even with a gamepad plugged in
+              --no-mouse         no mouse: the games' pointers move by keyboard or joystick
               --no-sound         no sound
               --music <device>   the music device, adlib or roland, written into the game's
                                  settings in the save folder, where it stays (GOG's is adlib)
@@ -282,6 +289,7 @@ internal static class Program
               the keyboard is the PC's, key for key
               a gamepad is the joystick: the left stick or d-pad moves it, the face buttons are its
               four buttons (plug it in before starting: the games look for a joystick as they start)
+              the mouse is the PC's once a click in the window captures it; Ctrl+F10 frees it
               F11 full screen, Shift+F11 pixel shape, F12 full speed on and off, Pause pauses
             """);
     }

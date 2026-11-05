@@ -92,3 +92,7 @@ static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machin
 Confederation.Core.Machine.Mt32.get -> string?
 Confederation.Core.Machine.Mt32Display.get -> string?
 Confederation.Core.Machine.UseMt32(string! romFolder) -> string!
+Confederation.Core.Machine.Mouse.get -> bool
+Confederation.Core.Machine.Mouse.set -> void
+Confederation.Core.Machine.MoveMouse(int dx, int dy) -> void
+Confederation.Core.Machine.SetMouseButton(int button, bool down) -> void

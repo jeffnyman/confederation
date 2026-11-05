@@ -355,13 +355,4 @@ public sealed partial class Machine
         }
     }
 
-    /// <summary>INT 33h, the mouse driver. None is installed yet.</summary>
-    private void MouseService()
-    {
-        Trace($"33/{(ushort)Cpu.Eax:X4} no mouse");
-        if ((ushort)Cpu.Eax == 0)
-        {
-            SetAx(0);
-        }
-    }
 }

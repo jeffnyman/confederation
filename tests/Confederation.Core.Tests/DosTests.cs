@@ -193,6 +193,60 @@ public sealed class DosTests : IDisposable
         Assert.Equal('b', machine.ExitCode);
     }
 
+    [Theory]
+    [InlineData(false, 0x00)]
+    [InlineData(true, 0x02)]
+    public void The_mouse_driver_is_there_only_with_a_mouse(bool mouse, int buttons)
+    {
+        // xor bx, bx; xor ax, ax; int 33h; mov al, bl; mov ah, 4Ch; int 21h: the buttons it
+        // reports are the exit code, none without a mouse
+        var machine = Start([0x31, 0xDB, 0x31, 0xC0, 0xCD, 0x33, 0x88, 0xD8, 0xB4, 0x4C, 0xCD, 0x21], m => m.Mouse = mouse);
+        Assert.Equal(buttons, machine.ExitCode);
+    }
+
+    [Theory]
+    [InlineData(0xC8, 50)]  // mov al, cl: the column, in the driver's 640
+    [InlineData(0xD0, 30)]  // mov al, dl: the row, moving half as fast as the column
+    public void The_mouse_driver_follows_the_mouse(byte register, int expected)
+    {
+        // mov ax, 3; int 33h; mov al, cl (or dl); mov ah, 4Ch; int 21h
+        var machine = Start([0xB8, 0x03, 0x00, 0xCD, 0x33, 0x88, register, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            m.Mouse = true;
+            m.MoveMouse(-5000, -5000); // into the top left corner, which holds it
+            m.MoveMouse(50, 60);
+        });
+
+        Assert.Equal(expected, machine.ExitCode);
+    }
+
+    [Fact]
+    public void The_mouse_driver_counts_presses_and_motion()
+    {
+        // mov ax, 5; xor bx, bx; int 33h; mov al, bl; mov ah, 4Ch; int 21h: presses of the left
+        // button since last asked
+        var machine = Start([0xB8, 0x05, 0x00, 0x31, 0xDB, 0xCD, 0x33, 0x88, 0xD8, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            m.Mouse = true;
+            for (int i = 0; i < 3; i++)
+            {
+                m.SetMouseButton(0, true);
+                m.SetMouseButton(0, false);
+            }
+        });
+        Assert.Equal(3, machine.ExitCode);
+
+        // mov ax, 0Bh; int 33h; mov al, cl; mov ah, 4Ch; int 21h: the motion in mickeys, which
+        // the driver's ratio doesn't touch
+        machine = Start([0xB8, 0x0B, 0x00, 0xCD, 0x33, 0x88, 0xC8, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            m.Mouse = true;
+            m.MoveMouse(7, -3);
+            m.MoveMouse(5, 0);
+        });
+        Assert.Equal(12, machine.ExitCode);
+    }
+
     private Machine Start(byte[] code, Action<Machine>? before = null)
     {
         File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(code));

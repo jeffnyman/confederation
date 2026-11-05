@@ -153,6 +153,35 @@ public sealed class GameStartTests : IDisposable
     }
 
     [Fact]
+    public void Wing_Commander_II_starts_a_new_game_by_mouse()
+    {
+        if (TestData.Game("Wing Commander II") is not { } folder)
+        {
+            return;
+        }
+
+        var machine = new Machine(folder, _saves) { Log = _log.Add, Mouse = true };
+        machine.Load("WC2.EXE");
+        RunUntil(machine, () => machine.Time.TotalSeconds >= 65, 70L * machine.InstructionsPerSecond);
+
+        // the game polls the driver for the pointer's place (function 3) every frame: into the
+        // top left corner, then onto "Start New Game", at (160, 135) on the screen, (320, 135) in
+        // the driver's 640 by 200; a mickey a column across, two a row down
+        machine.MoveMouse(-2000, -2000);
+        machine.Run(machine.InstructionsPerSecond / 10);
+        machine.MoveMouse(320, 270);
+        machine.Run(machine.InstructionsPerSecond / 2);
+        Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc2-mouse-on-button.png"));
+        Assert.DoesNotContain(_log, line => line.Contains("open startglb.000", StringComparison.OrdinalIgnoreCase));
+
+        machine.SetMouseButton(0, true);
+        machine.Run(machine.InstructionsPerSecond / 5);
+        machine.SetMouseButton(0, false);
+        RunUntil(machine, () => _log.Any(line => line.Contains("open startglb.000", StringComparison.OrdinalIgnoreCase)), 5L * machine.InstructionsPerSecond);
+        Assert.DoesNotContain(_log, line => line.StartsWith("33/", StringComparison.Ordinal) && line.Contains("not done", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Wing_Commander_II_signs_on_a_pilot_and_flies()
     {
         if (TestData.Game("Wing Commander II") is not { } folder)

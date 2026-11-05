@@ -126,12 +126,48 @@ port empty regardless.
 *To confirm by playing:* that *Wing Commander* uses the stick in flight once it finds one, and how
 its calibration feels with a gamepad.
 
+## The mouse
+
+A PC's mouse isn't a device programs read directly. It plugs into a serial or PS/2 port, and a
+**driver** (Microsoft's `MOUSE.COM`, or a compatible one) reads it and answers `INT 33h`. Every
+DOS program of the time talks to the driver, never to the mouse. So that's what the machine
+provides (`Machine.Mouse.cs`, after the interface Microsoft defined and DOSBox's `mouse.cpp`
+answers):
+
+- **Reset** (function 0) says whether there's a mouse, and how many buttons. Without one, it
+  answers "no mouse", and the games steer their pointers by keyboard or stick, as before.
+- **Where the pointer is, and the buttons** (function 3). Both games poll this every frame. It's
+  the only thing they read: they also set the pointer's place (function 4) as they start, and
+  that's all. They install no event handler and draw their own pointer.
+- **Presses and releases counted** since last asked (5 and 6), **the area the pointer is kept in**
+  (7 and 8), **the motion** in mickeys (0Bh) and **the ratio** of mickeys to pixels (0Fh), for
+  programs that want them.
+
+Two details of the driver are worth knowing. Its coordinates aren't the screen's: in the 320 by
+200 graphics modes the driver counts **640 across** and 200 down, and a program halves the column.
+And the mouse moves in **mickeys**, its own steps of about a two hundredth of an inch, which the
+driver turns into its pixels at 8 mickeys to 8 pixels across and 16 to 8 down, so the pointer
+moves half as fast down as across, as on the real driver.
+
+The player passes the host's mouse through **as motion, not as a place**: one host pixel of motion
+is one mickey. The desktop's pointer can't be the game's, because the game draws its own and
+moves it at its own pace. So a click in the window **captures** the mouse, as DOSBox does: the
+desktop's pointer disappears, and its motion and its left and right buttons are the PC mouse's.
+That first click isn't passed on. **Ctrl+F10** gives the mouse back, as does leaving the window.
+`--no-mouse` leaves the PC without one.
+
 ## Checking it without a player
 
 A window is hard to test, but the parts that matter aren't in the window:
 
 - **The scan code table and the game port** have unit tests (`InputTests.cs`): letters, the AT's
   extended keys, the keypad, and each axis timing out at its position.
+- **The mouse driver**, with small programs (`DosTests.cs`): no driver without a mouse, two
+  buttons with one, the pointer following the motion at the driver's ratio and held in its area,
+  presses counted, and the motion in mickeys.
+- **The game, by mouse** (`GameStartTests.cs`): at *Wing Commander II*'s title menu, the mouse
+  moves the pointer onto "Start New Game" (`wc2-mouse-on-button.png`), and a click starts a new
+  game.
 - **The game, by keyboard** (`GameStartTests.cs`): *Wing Commander* runs from launch; Space cuts the
   intro short, Enter ends it at the campaign menu, and Enter again starts the Vega campaign. The
   test waits for the game to open `RECROOM.VGA`, the Tiger's Claw's rec room, and saves a
@@ -148,7 +184,5 @@ start-up included.
 
 ## What isn't there yet
 
-- **The mouse.** The games draw a pointer and can be steered by mouse, but no mouse driver
-  answers `INT 33h` yet, so the pointer moves by keyboard or stick.
-- **Sound**, which came next: [the sound](the-sound.md).
+- **Sound** came next: [the sound](the-sound.md).
 - **Saved states** and per-game controls, with the profiles.

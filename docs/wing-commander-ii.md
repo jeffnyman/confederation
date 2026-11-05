@@ -138,7 +138,8 @@ reaches the same title menu, with nothing left unanswered. The player starts the
 
 - **Playing a mission through**: flying, firing, the sound effects, and landing, which nothing
   has checked yet.
-- **The mouse.** The menus and the quarters are made for a pointer, and the arrow keys only
-  stand in for it; an `INT 33h` mouse driver will make them natural.
+- **The mouse**, done since: the menus and the quarters are made for a pointer, and the
+  machine now has a mouse driver ([the player](the-player.md#the-mouse)). A click on "Start New
+  Game" starts one.
 - **Typing at the right moment.** The player passes keys through as they're pressed, so a person
   will simply type when the prompt appears. A test script has to wait for it.

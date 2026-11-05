@@ -17,7 +17,7 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
    ([docs/the-vga-and-keyboard.md](docs/the-vga-and-keyboard.md)).
 4. **The player.** *Done.* An SDL3 window, the keyboard key for key, and a gamepad on the
    analog joystick port. Each game held to its own speed in real time. *Wing Commander* is
-   playable, silently, by keyboard and stick; a mouse driver (`INT 33h`) is still to come
+   playable by keyboard, stick and, added after step 6, mouse (`INT 33h`)
    ([docs/the-player.md](docs/the-player.md)).
 5. **Sound.** OPL2/OPL3 FM for AdLib and Sound Blaster music (*done*: *Wing Commander* plays its
    score, [docs/the-sound.md](docs/the-sound.md)); the MPU-401 feeding an MT-32, from Daventry's

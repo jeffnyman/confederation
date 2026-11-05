@@ -21,6 +21,9 @@ internal sealed class PlayerOptions
 
     /// <summary>Plays the machine's sound; when false, or when there's no sound device, the player is silent.</summary>
     public bool Sound { get; init; } = true;
+
+    /// <summary>Whether the host's mouse is the machine's mouse, once a click in the window captures it.</summary>
+    public bool Mouse { get; init; } = true;
 }
 
 /// <summary>
@@ -62,6 +65,9 @@ internal sealed unsafe class SdlPlayer : IDisposable
     private readonly Dictionary<SDL_JoystickID, nint> _gamepads = [];
     private readonly float[] _stick = new float[2];
     private readonly int[] _dpad = new int[2];
+
+    // the mouse's motion not yet passed on: the host's motion comes in fractions
+    private float _mouseRestX, _mouseRestY;
     private bool _quit;
     private bool _paused;
     private bool _warp;
@@ -219,13 +225,32 @@ internal sealed unsafe class SdlPlayer : IDisposable
 
                 case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
                     // the keys up go to another window: let go of every key held, or one (Alt,
-                    // after Alt+Tab) stays down in the game
+                    // after Alt+Tab) stays down in the game; and the mouse goes back
                     foreach (var (code, extended) in _held)
                     {
                         _machine.ReleaseKey(code, extended);
                     }
 
                     _held.Clear();
+                    ReleaseMouse();
+                    break;
+
+                case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
+                case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
+                    MouseButton(sdlEvent.button.button, sdlEvent.button.down);
+                    break;
+
+                case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
+                    if (_window.MouseCaptured)
+                    {
+                        _mouseRestX += sdlEvent.motion.xrel;
+                        _mouseRestY += sdlEvent.motion.yrel;
+                        int dx = (int)_mouseRestX, dy = (int)_mouseRestY;
+                        _mouseRestX -= dx;
+                        _mouseRestY -= dy;
+                        _machine.MoveMouse(dx, dy);
+                    }
+
                     break;
 
                 case SDL_EventType.SDL_EVENT_KEY_DOWN:
@@ -292,6 +317,13 @@ internal sealed unsafe class SdlPlayer : IDisposable
                 }
 
                 return;
+            case SDL_Scancode.SDL_SCANCODE_F10 when (key.mod & SDL_Keymod.SDL_KMOD_CTRL) != 0:
+                if (key.down && !key.repeat)
+                {
+                    ReleaseMouse();
+                }
+
+                return;
             case SDL_Scancode.SDL_SCANCODE_PAUSE:
                 if (key.down && !key.repeat)
                 {
@@ -320,7 +352,57 @@ internal sealed unsafe class SdlPlayer : IDisposable
     }
 
     private void ShowStatus()
-        => _window.ShowStatus(_paused ? "paused" : _warp ? "full speed" : null);
+        => _window.ShowStatus(_paused ? "paused" : _warp ? "full speed" : _window.MouseCaptured ? "Ctrl+F10 frees the mouse" : null);
+
+    /// <summary>
+    /// A mouse button. While the mouse is free, a click in the window captures it for the game
+    /// (and isn't passed on, as it was only meant to take the mouse); after that, the left and
+    /// right buttons are the PC mouse's.
+    /// </summary>
+    private void MouseButton(byte button, bool down)
+    {
+        if (!_options.Mouse)
+        {
+            return;
+        }
+
+        if (!_window.MouseCaptured)
+        {
+            if (down)
+            {
+                _window.CaptureMouse(true);
+                ShowStatus();
+            }
+
+            return;
+        }
+
+        int pcButton = button switch
+        {
+            SDL_BUTTON_LEFT => 0,
+            SDL_BUTTON_RIGHT => 1,
+            _ => -1,
+        };
+
+        if (pcButton >= 0)
+        {
+            _machine.SetMouseButton(pcButton, down);
+        }
+    }
+
+    /// <summary>The mouse back to the desktop, with the PC mouse's buttons let go.</summary>
+    private void ReleaseMouse()
+    {
+        if (!_window.MouseCaptured)
+        {
+            return;
+        }
+
+        _window.CaptureMouse(false);
+        _machine.SetMouseButton(0, false);
+        _machine.SetMouseButton(1, false);
+        ShowStatus();
+    }
 
     /// <summary>The game port has a joystick while a gamepad is plugged in, unless the joystick is turned off.</summary>
     private void UpdateJoystick()

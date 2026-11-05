@@ -117,6 +117,18 @@ internal sealed unsafe class SdlWindow : IDisposable
     }
 
     /// <summary>Shows a short status, such as "paused", after the title in the title bar; null clears it.</summary>
+    /// <summary>Whether the mouse is the game's: hidden, held in the window, and read as motion rather than a place.</summary>
+    public bool MouseCaptured { get; private set; }
+
+    /// <summary>Gives the mouse to the game, or back to the desktop.</summary>
+    public void CaptureMouse(bool capture)
+    {
+        if (capture != MouseCaptured && SDL_SetWindowRelativeMouseMode(_window, capture))
+        {
+            MouseCaptured = capture;
+        }
+    }
+
     public void ShowStatus(string? status) => SDL_SetWindowTitle(_window, status is null ? _title : $"{_title}  ({status})");
 
     public void Dispose()
