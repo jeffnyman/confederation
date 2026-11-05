@@ -64,6 +64,7 @@ public sealed partial class Machine : ICpuBus
         _dos = new DosServices(this, new DosDrive(gameFolder, saveFolder));
         InstallBios();
         _ems.Install();
+        InstallSound();
     }
 
     /// <summary>The processor.</summary>
@@ -174,6 +175,7 @@ public sealed partial class Machine : ICpuBus
             }
         }
 
+        UpdateSound();
         return !Exited;
     }
 
@@ -254,12 +256,19 @@ public sealed partial class Machine : ICpuBus
             case 0x92:
                 return (byte)(A20 ? 0x02 : 0x00);
             case 0x201:
-                return _gamePort.Read(Time.TotalSeconds);
+                return _gamePort.Read(Seconds);
+            case >= 0x388 and <= 0x38B:
+            case >= 0x220 and <= 0x223:
+            case 0x228:
+            case 0x229:
+                // the FM synthesizer: the AdLib's ports, and the Sound Blaster's (its first four
+                // reach both banks, and 228h and 229h the first, as on an AdLib)
+                return _opl.Read(port, Seconds);
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
             case 0x3D5:
             case 0x3DA:
-                _vga.Time = Time.TotalSeconds;
+                _vga.Time = Seconds;
                 return _vga.In(port);
             default:
                 LogPort(port, "in");
@@ -299,7 +308,14 @@ public sealed partial class Machine : ICpuBus
                 A20 = (value & 0x02) != 0;
                 break;
             case 0x201:
-                _gamePort.Write(Time.TotalSeconds);
+                _gamePort.Write(Seconds);
+                break;
+            case >= 0x388 and <= 0x38B:
+            case >= 0x220 and <= 0x223:
+            case 0x228:
+            case 0x229:
+                UpdateSound();
+                _opl.Write(port, value, Seconds);
                 break;
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:

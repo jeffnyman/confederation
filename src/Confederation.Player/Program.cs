@@ -50,6 +50,7 @@ internal static class Program
         bool fullscreen = false;
         bool squarePixels = false;
         bool joystick = true;
+        bool sound = true;
         bool headless = false;
 
         int i = 0;
@@ -98,6 +99,9 @@ internal static class Program
                     break;
                 case "--no-joystick":
                     joystick = false;
+                    break;
+                case "--no-sound":
+                    sound = false;
                     break;
                 case "--log":
                     logPath = Next("--log", "a file name");
@@ -170,6 +174,7 @@ internal static class Program
                     Fullscreen = fullscreen,
                     SquarePixels = squarePixels,
                     Joystick = joystick,
+                    Sound = sound,
                 };
 
                 using var player = new SdlPlayer(machine, options);
@@ -225,6 +230,7 @@ internal static class Program
               --fullscreen       start in full screen
               --square-pixels    square pixels, not the 4:3 picture a monitor showed
               --no-joystick      no joystick on the game port, even with a gamepad plugged in
+              --no-sound         no sound
               --log <file>       write every DOS, BIOS and EMS call, and unanswered port, to a file
               --seconds <n>      stop after n seconds of the game's time
               --screenshot <f>   save the picture as a PNG when stopping

@@ -32,5 +32,7 @@ games.
 7. [The player](the-player.md): the window, holding the game to real time at its own speed, the
    keyboard's scan codes, the PC's odd analog joystick port and a gamepad on it, and testing a
    game by keyboard without a person at the keys.
+8. [The sound](the-sound.md): what the games ask for, the OPL FM synthesizer and the card around
+   it, making each sample just in time, and letting the sound device set the pace.
 
-More notes will follow as the work does: sound, and each game as it comes up.
+More notes will follow as the work does: the rest of the sound, and each game as it comes up.

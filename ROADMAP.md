@@ -19,8 +19,9 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
    analog joystick port. Each game held to its own speed in real time. *Wing Commander* is
    playable, silently, by keyboard and stick; a mouse driver (`INT 33h`) is still to come
    ([docs/the-player.md](docs/the-player.md)).
-5. **Sound.** OPL2/OPL3 FM for AdLib and Sound Blaster music; the MPU-401 feeding an MT-32 (from
-   Daventry's port of Munt); the Sound Blaster DSP and DMA for digital sound.
+5. **Sound.** OPL2/OPL3 FM for AdLib and Sound Blaster music (*done*: *Wing Commander* plays its
+   score, [docs/the-sound.md](docs/the-sound.md)); the MPU-401 feeding an MT-32 (from Daventry's
+   port of Munt); the Sound Blaster DSP and DMA for digital sound.
 6. ***Wing Commander II.*** Speech, its EMS use, and the `loadfix` question
    ([docs/the-games.md](docs/the-games.md)). *Special Operations* 1 and 2.
 7. **Per-game profiles.** Save states, each game's speed, controls and sound device, and the

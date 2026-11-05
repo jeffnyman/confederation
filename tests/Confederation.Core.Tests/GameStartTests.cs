@@ -42,15 +42,53 @@ public sealed class GameStartTests : IDisposable
 
         // the conductor, the Origin FX logo, and the space battle after the opening words; the
         // times are emulated seconds from launch, and each screen is taken well inside its scene
+        var sound = new List<short>();
+        var buffer = new short[Machine.SampleRate * 2];
         foreach (var (second, name) in new[] { (12, "conductor"), (25, "origin-fx"), (36, "battle") })
         {
-            RunUntil(machine, () => machine.Time.TotalSeconds >= second, (long)second * machine.InstructionsPerSecond);
+            // a tenth of a second at a time, taking the sound as it's made
+            while (machine.Time.TotalSeconds < second && machine.Run(machine.InstructionsPerSecond / 10))
+            {
+                int count = machine.ReadSamples(buffer);
+                sound.AddRange(buffer.AsSpan(0, count));
+            }
+
+            RunUntil(machine, () => machine.Time.TotalSeconds >= second, 0);
             Screenshot.WritePng(machine, Path.Combine(shots, $"wc-intro-{name}.png"));
 
             // a picture, not a blank or a single color
             var pixels = new uint[machine.DisplayWidth * machine.DisplayHeight];
             machine.Render(pixels);
             Assert.True(pixels.Distinct().Count() >= 16, $"the {name} screen has only {pixels.Distinct().Count()} colors");
+        }
+
+        // the score, on the AdLib: saved to listen to, and loud enough to be music, not silence
+        WriteWav(Path.Combine(shots, "wc-intro.wav"), sound);
+        Assert.InRange(sound.Count, 2 * 35 * Machine.SampleRate, 2 * 37 * Machine.SampleRate);
+        double rms = Math.Sqrt(sound.Average(sample => (double)sample * sample));
+        Assert.True(rms > 300, $"the intro is nearly silent: {rms:F0}");
+    }
+
+    private static void WriteWav(string path, List<short> samples)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var writer = new BinaryWriter(File.Create(path));
+        int bytes = samples.Count * 2;
+        writer.Write("RIFF"u8);
+        writer.Write(36 + bytes);
+        writer.Write("WAVEfmt "u8);
+        writer.Write(16);
+        writer.Write((short)1); // PCM
+        writer.Write((short)2); // stereo
+        writer.Write(Machine.SampleRate);
+        writer.Write(Machine.SampleRate * 4);
+        writer.Write((short)4);
+        writer.Write((short)16);
+        writer.Write("data"u8);
+        writer.Write(bytes);
+        foreach (short sample in samples)
+        {
+            writer.Write(sample);
         }
     }
 

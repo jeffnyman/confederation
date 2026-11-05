@@ -19,6 +19,7 @@ Confederation.Core.Machine.Machine(string! gameFolder, string! saveFolder) -> vo
 Confederation.Core.Machine.Out(ushort port, byte value) -> void
 Confederation.Core.Machine.PressKey(byte scanCode, bool extended = false) -> void
 Confederation.Core.Machine.Read(uint address) -> byte
+Confederation.Core.Machine.ReadSamples(System.Span<short> samples) -> int
 Confederation.Core.Machine.ReleaseKey(byte scanCode, bool extended = false) -> void
 Confederation.Core.Machine.Render(System.Span<uint> pixels) -> void
 Confederation.Core.Machine.Run(long instructions) -> bool
@@ -84,6 +85,7 @@ Confederation.Core.Processors.Intel386.Ss.set -> void
 Confederation.Core.Processors.Intel386.Step() -> void
 Confederation.Core.ScanCodes
 Confederation.Core.Screenshot
+const Confederation.Core.Machine.SampleRate = 44100 -> int
 static Confederation.Core.ScanCodes.TryFromUsb(int usage, out byte scanCode, out bool extended) -> bool
 static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, System.IO.Stream! stream) -> void
 static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, string! path) -> void

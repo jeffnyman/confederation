@@ -1,7 +1,7 @@
 # The player
 
 With the player, *Wing Commander* runs in a window and can be played: the intro, the campaign
-menu, the Tiger's Claw. It's still silent; sound is the next step. This note covers what the player
+menu, the Tiger's Claw. (Silently, when this was written; [the sound](the-sound.md) came next.) This note covers what the player
 does, how it keeps the game at the right speed, how the keyboard and a gamepad reach the game, and
 how it was checked without a person at the keys.
 
@@ -56,6 +56,8 @@ fractions of an instruction a frame leaves over add up instead of being lost: at
 a frame is about 57,072.7 instructions, and dropping the fraction each time would leave the game
 slightly slow, an error that grows for as long as it runs. If the host falls well behind, because the window was dragged or the system was
 busy, the player carries on from now rather than racing through the missed frames.
+Once the machine had sound, the sound device's clock took over from the host's in step 3; see
+[the sound](the-sound.md#keeping-picture-and-sound-together).
 
 The emulator runs *Wing Commander* at three to five times real speed on a desktop machine, so
 there's room to spare. F12 lets it run flat out, to get past things quickly.
@@ -148,5 +150,5 @@ start-up included.
 
 - **The mouse.** The games draw a pointer and can be steered by mouse, but no mouse driver
   answers `INT 33h` yet, so the pointer moves by keyboard or stick.
-- **Sound**, which is next ([the roadmap](../ROADMAP.md)).
+- **Sound**, which came next: [the sound](the-sound.md).
 - **Saved states** and per-game controls, with the profiles.

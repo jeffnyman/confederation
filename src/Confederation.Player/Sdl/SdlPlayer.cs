@@ -18,12 +18,17 @@ internal sealed class PlayerOptions
 
     /// <summary>Whether gamepads are the joystick on the game port; when false the port is empty.</summary>
     public bool Joystick { get; init; } = true;
+
+    /// <summary>Plays the machine's sound; when false, or when there's no sound device, the player is silent.</summary>
+    public bool Sound { get; init; } = true;
 }
 
 /// <summary>
 /// Plays the machine in a window, a VGA frame at a time: a frame's worth of the machine's time
-/// (1/70th of a second in the 256-color modes), then the picture, then a wait for the next
-/// frame's moment on the host's clock. Keyboard and gamepads are read between frames.
+/// (1/70th of a second in the 256-color modes), then the picture and the sound, then a wait for
+/// the next frame's moment. With sound, the moment is the sound device's: the next frame runs
+/// when the sound queued has played down to a few frames, so picture and sound never drift apart.
+/// Without, it's the host's clock. Keyboard and gamepads are read between frames.
 /// </summary>
 /// <remarks>
 /// The machine's own sense of time comes from the instructions it runs, so the game always sees
@@ -41,6 +46,12 @@ internal sealed unsafe class SdlPlayer : IDisposable
 
     // at full speed, frames run between pictures for this long, in seconds of real time
     private const double WarpSlice = 1 / 60.0;
+
+    // sound queued ahead of the device, in samples: 60 ms, about four frames, enough to ride out a late frame
+    private const int SoundAhead = Machine.SampleRate * 2 * 60 / 1000;
+
+    private readonly short[] _samples = new short[Machine.SampleRate / 5];
+    private readonly SdlAudio? _audio;
 
     private readonly Machine _machine;
     private readonly PlayerOptions _options;
@@ -65,6 +76,17 @@ internal sealed unsafe class SdlPlayer : IDisposable
             SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO | SDL_InitFlags.SDL_INIT_EVENTS | SDL_InitFlags.SDL_INIT_GAMEPAD),
             "SDL_Init");
         _window = new SdlWindow(options.Title, options.Scale, options.Fullscreen, options.SquarePixels);
+        if (options.Sound)
+        {
+            try
+            {
+                _audio = new SdlAudio();
+            }
+            catch (SdlException ex)
+            {
+                Console.Error.WriteLine($"confederation: no sound: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>
@@ -85,6 +107,7 @@ internal sealed unsafe class SdlPlayer : IDisposable
             Pump();
             if (_paused)
             {
+                // what's queued plays out, and the sound picks up again from the moment of unpausing
                 _window.Redraw();
                 SDL_Delay(16);
                 next = Stopwatch.GetTimestamp();
@@ -98,6 +121,11 @@ internal sealed unsafe class SdlPlayer : IDisposable
                 do
                 {
                     running = RunFrame();
+
+                    // sound at full speed is no use: it's dropped
+                    while (_machine.ReadSamples(_samples) > 0)
+                    {
+                    }
                 }
                 while (running && Stopwatch.GetTimestamp() < until);
 
@@ -108,6 +136,26 @@ internal sealed unsafe class SdlPlayer : IDisposable
 
             running = RunFrame();
             Present();
+
+            if (_audio is not null)
+            {
+                for (int count; (count = _machine.ReadSamples(_samples)) > 0;)
+                {
+                    _audio.Queue(_samples.AsSpan(0, count));
+                }
+
+                while (_audio.Queued > SoundAhead && !_quit)
+                {
+                    SDL_DelayPrecise(1_000_000);
+                }
+
+                continue;
+            }
+
+            // without sound, nobody reads it
+            while (_machine.ReadSamples(_samples) > 0)
+            {
+            }
 
             next += frameTicks;
             long wait = next - Stopwatch.GetTimestamp();
@@ -131,6 +179,7 @@ internal sealed unsafe class SdlPlayer : IDisposable
             SDL_CloseGamepad((SDL_Gamepad*)gamepad);
         }
 
+        _audio?.Dispose();
         _window.Dispose();
         SDL_Quit();
     }
