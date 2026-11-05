@@ -61,9 +61,19 @@ CD 1C       INT 1Ch
 CF          IRET
 ```
 
-A service that has to wait (`INT 16h` with no key pressed) moves the return address back over the
-`INT`. When the stub returns, the program calls the service again, with timer interrupts able to
-arrive in between. That's how it waits without blocking the emulator.
+A service that has to wait (`INT 16h` or DOS's function 07h with no key pressed) puts the
+processor back on the stub's `0F FF`, with interrupts on. The service is called again at the next
+instruction, and the timer's and keyboard's interrupts can come in between, as they do while real
+DOS waits. That's how it waits without blocking the emulator.
+
+It first did this differently, by moving the caller's return address back over its two-byte
+`INT`, so that the program would make the call again. That's right only when the caller was an
+`INT`, and it isn't always. *Wing Commander* hooks INT 21h and passes calls on to DOS's handler
+with `PUSHF` and a five-byte `CALL FAR`. At its name prompt, which waits for each key with
+function 07h, the return moved back two bytes landed in the middle of that instruction. Keys came
+through only when one was already waiting, and the stray code it ran soon locked the game up.
+Keeping the wait inside the stub doesn't depend on how the stub was reached
+(**observed**: the prompt now takes a name, backspace and all).
 
 ## Loading a program
 

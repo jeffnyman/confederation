@@ -326,6 +326,70 @@ public sealed class GameStartTests : IDisposable
         Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc-barracks.png"));
     }
 
+    /// <summary>
+    /// A new campaign starts in the simulator, and its end asks for the pilot's name. The prompt
+    /// waits for each key with DOS's function 07h, called through the game's own INT 21h handler
+    /// by a far call: the wait once broke that call's return, losing keys and then locking up.
+    /// </summary>
+    [Fact]
+    public void Wing_Commander_takes_a_name_at_its_top_score_prompt()
+    {
+        if (TestData.Game("Wing Commander") is not { } folder)
+        {
+            return;
+        }
+
+        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        machine.Load("WC.EXE");
+
+        // a quick press, then a moment before the next, as a typist's
+        void Press(byte code)
+        {
+            machine.PressKey(code);
+            machine.Run(machine.InstructionsPerSecond * 8 / 100);
+            machine.ReleaseKey(code);
+            machine.Run(machine.InstructionsPerSecond * 15 / 100);
+        }
+
+        // past the intro to the campaign menu, where the pointer starts on "Continue Campaign":
+        // up to "Start Vega Campaign" and Enter, and the simulator ends at the prompt at once
+        RunUntil(machine, () => machine.Time.TotalSeconds >= 10, 50_000_000);
+        Press(0x39);
+        machine.Run(12L * machine.InstructionsPerSecond);
+        Press(0x1C);
+        machine.Run(12L * machine.InstructionsPerSecond);
+        for (int i = 0; i < 6; i++)
+        {
+            Press(0x48);
+        }
+
+        Press(0x1C);
+        machine.Run(12L * machine.InstructionsPerSecond);
+
+        // "smith", a backspace, and Enter: the game capitalizes it, and asks for the callsign
+        foreach (byte key in new byte[] { 0x1F, 0x32, 0x17, 0x14, 0x23, 0x0E, 0x1C })
+        {
+            Press(key);
+        }
+
+        machine.Run(machine.InstructionsPerSecond / 2);
+        Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc-top-score.png"));
+        // kept as typed, and shown capitalized
+        Assert.True(Contains(machine, "smit\0"u8), "the name typed isn't in memory");
+        Assert.False(Contains(machine, "smith"u8), "the backspace didn't take");
+    }
+
+    private static bool Contains(Machine machine, ReadOnlySpan<byte> text)
+    {
+        var memory = new byte[0xA_0000];
+        for (uint address = 0; address < memory.Length; address++)
+        {
+            memory[address] = machine.Read(address);
+        }
+
+        return memory.AsSpan().IndexOf(text) >= 0;
+    }
+
     private void RunUntil(Machine machine, Func<bool> done, long limit)
     {
         string? error = null;

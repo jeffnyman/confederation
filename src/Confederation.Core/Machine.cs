@@ -450,14 +450,23 @@ public sealed partial class Machine : ICpuBus
     internal void SetReturnZero(bool on) => SetReturnFlag(Intel386.Flag.Zero, on);
 
     /// <summary>
-    /// Makes the interrupt run again when it returns, by moving the return address back over the
-    /// two-byte <c>INT</c>. A service that must wait (for a key, say) does this, and the program
-    /// keeps calling it, with interrupts able to come in between, until it can answer.
+    /// Makes the service run again, for one that must wait (for a key, say): the processor goes
+    /// back to the stub's call into C#, with interrupts on, so the keyboard's can come in while
+    /// it waits, as they do while real DOS and the BIOS wait. The service is called again and
+    /// again, inside its stub, until it can answer.
     /// </summary>
+    /// <remarks>
+    /// The wait has to stay inside the stub. It once moved the caller's return address back over
+    /// the two-byte <c>INT</c>, which is right only when the caller was an <c>INT</c>. <i>Wing
+    /// Commander</i> hooks INT 21h and passes DOS calls on with <c>PUSHF</c> and a five-byte
+    /// <c>CALL FAR</c>; moved back two bytes, its return landed inside that instruction, and
+    /// waiting for a key at its name prompt ran stray code until the game locked up.
+    /// </remarks>
     internal void RepeatInterrupt()
     {
-        uint sp = Cpu.Esp & 0xFFFF;
-        WriteWord(Cpu.Ss, sp, (ushort)(ReadWord(Cpu.Ss, sp) - 2));
+        // the stub's 0F FF and service number, just run
+        Cpu.Eip -= 3;
+        Cpu.Eflags |= Intel386.Flag.Interrupt;
     }
 
     private void HostCall(byte service)

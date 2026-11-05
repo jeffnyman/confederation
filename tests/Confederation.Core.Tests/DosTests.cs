@@ -247,6 +247,27 @@ public sealed class DosTests : IDisposable
         Assert.Equal(12, machine.ExitCode);
     }
 
+    [Fact]
+    public void Waiting_for_a_key_works_through_a_far_call_with_interrupts_off()
+    {
+        // as Wing Commander's own INT 21h handler passes a call on to DOS's:
+        //   cli; mov ah, 7; pushf; call far F000:0184 (DOS's stub); mov ah, 4Ch; int 21h
+        // DOS waits for the key with interrupts on, and returns where the far call does
+        File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(
+        [
+            0xFA, 0xB4, 0x07, 0x9C, 0x9A, 0x84, 0x01, 0x00, 0xF0, 0xB4, 0x4C, 0xCD, 0x21,
+        ]));
+        var machine = new Machine(_game, _saves) { Log = _log.Add };
+        machine.Load("TEST.EXE");
+        machine.Run(100_000);
+        Assert.False(machine.Exited);
+
+        machine.PressKey(0x1E); // A
+        machine.Run(100_000);
+        Assert.True(machine.Exited, string.Join('\n', _log));
+        Assert.Equal('a', machine.ExitCode);
+    }
+
     private Machine Start(byte[] code, Action<Machine>? before = null)
     {
         File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(code));
