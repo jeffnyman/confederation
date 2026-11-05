@@ -91,11 +91,29 @@ public sealed class DosTests : IDisposable
         Assert.Equal(0, machine.ExitCode);
     }
 
-    private Machine Start(byte[] code)
+    [Fact]
+    public void A_key_pressed_reaches_the_program_through_the_bios()
+    {
+        // mov ah, 0; int 16h; mov ah, 4Ch; int 21h: exits with the character of the key
+        var machine = Start([0xB4, 0x00, 0xCD, 0x16, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            // shift down, A down and up, shift up: the keyboard controller's IRQ 1, the BIOS's
+            // handler and its buffer turn it into a capital A for INT 16h
+            m.PressKey(0x2A);
+            m.PressKey(0x1E);
+            m.ReleaseKey(0x1E);
+            m.ReleaseKey(0x2A);
+        });
+
+        Assert.Equal('A', machine.ExitCode);
+    }
+
+    private Machine Start(byte[] code, Action<Machine>? before = null)
     {
         File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(code));
         var machine = new Machine(_game, _saves) { Log = _log.Add };
         machine.Load("TEST.EXE");
+        before?.Invoke(machine);
         machine.Run(100_000);
         Assert.True(machine.Exited, string.Join('\n', _log));
         return machine;

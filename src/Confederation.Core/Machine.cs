@@ -30,12 +30,15 @@ public sealed partial class Machine : ICpuBus
 
     private const uint HighMemoryEnd = 0x11_0000;
     private const uint PageFrame = 0xE_0000;
+    private const uint VideoMemory = 0xA_0000;
 
     private readonly byte[] _memory = new byte[HighMemoryEnd];
     private readonly ExpandedMemory _ems;
     private readonly DosServices _dos;
     private readonly InterruptController _pic = new();
     private readonly IntervalTimer _timer = new();
+    private readonly Vga _vga = new();
+    private readonly KeyboardController _keyboard = new();
 
     // the time, counted in instructions, with those the processor would have run while halted
     private long _time;
@@ -55,6 +58,7 @@ public sealed partial class Machine : ICpuBus
     {
         Cpu = new Intel386(this) { HostCall = HostCall };
         _timer.Reloaded0 += () => _nextIrq0 = _timer.Start0 + _timer.Period0;
+        _keyboard.Interrupt += () => _pic.Raise(1);
         _ems = new ExpandedMemory(this);
         _dos = new DosServices(this, new DosDrive(gameFolder, saveFolder));
         InstallBios();
@@ -77,7 +81,19 @@ public sealed partial class Machine : ICpuBus
     public int ExitCode { get; internal set; }
 
     /// <summary>The video mode the program last chose through the BIOS; 3, 80 by 25 text, at the start.</summary>
-    public int VideoMode { get; internal set; } = 3;
+    public int VideoMode => _vga.Mode;
+
+    /// <summary>The width of the picture the display shows, in pixels.</summary>
+    public int DisplayWidth => _vga.Size.Width;
+
+    /// <summary>The height of the picture the display shows, in pixels.</summary>
+    public int DisplayHeight => _vga.Size.Height;
+
+    /// <summary>
+    /// Draws the picture the display shows, <see cref="DisplayWidth"/> by <see cref="DisplayHeight"/>
+    /// pixels of 32-bit ARGB, row by row. Text modes are drawn black for now.
+    /// </summary>
+    public void Render(Span<uint> pixels) => _vga.Render(pixels);
 
     /// <summary>
     /// How fast the machine runs, in instructions per second. Time in the machine (the timer's
@@ -131,6 +147,7 @@ public sealed partial class Machine : ICpuBus
             }
 
             UpdateTimer();
+            _keyboard.Update();
             if (_pic.HasInterrupt && Cpu.InterruptsEnabled)
             {
                 Cpu.Interrupt(_pic.Acknowledge());
@@ -162,6 +179,11 @@ public sealed partial class Machine : ICpuBus
     public byte Read(uint address)
     {
         address = Wrap(address);
+        if (address - VideoMemory < 0x2_0000)
+        {
+            return _vga.Read(address);
+        }
+
         if (address - PageFrame < 0x1_0000)
         {
             return _ems.Read(address - PageFrame);
@@ -174,7 +196,11 @@ public sealed partial class Machine : ICpuBus
     public void Write(uint address, byte value)
     {
         address = Wrap(address);
-        if (address - PageFrame < 0x1_0000)
+        if (address - VideoMemory < 0x2_0000)
+        {
+            _vga.Write(address, value);
+        }
+        else if (address - PageFrame < 0x1_0000)
         {
             _ems.Write(address - PageFrame, value);
         }
@@ -202,6 +228,17 @@ public sealed partial class Machine : ICpuBus
                 // port B: the speaker bits as written, memory refresh toggling every 15 us (which
                 // programs time short delays by), and counter 2's output
                 return (byte)((_portB & 0x0F) | (((_timer.Now / 18) & 1) != 0 ? 0x10 : 0) | (_timer.Output2 ? 0x20 : 0));
+            case 0x60:
+            case 0x64:
+                return _keyboard.In(port);
+            case 0x92:
+                return (byte)(A20 ? 0x02 : 0x00);
+            case >= 0x3C0 and <= 0x3CF:
+            case 0x3D4:
+            case 0x3D5:
+            case 0x3DA:
+                _vga.Time = Time.TotalSeconds;
+                return _vga.In(port);
             default:
                 LogPort(port, "in");
                 return 0xFF;
@@ -229,6 +266,20 @@ public sealed partial class Machine : ICpuBus
             case 0x61:
                 _portB = value;
                 _timer.Gate2 = (value & 1) != 0;
+                break;
+            case 0x60:
+            case 0x64:
+                _keyboard.Out(port, value);
+                A20 = _keyboard.A20;
+                break;
+            case 0x92:
+                // the fast A20 gate of later machines
+                A20 = (value & 0x02) != 0;
+                break;
+            case >= 0x3C0 and <= 0x3CF:
+            case 0x3D4:
+            case 0x3D5:
+                _vga.Out(port, value);
                 break;
             default:
                 LogPort(port, $"out {value:X2}");
@@ -335,7 +386,8 @@ public sealed partial class Machine : ICpuBus
         switch (service)
         {
             case 0x08: TimerTick(); break;
-            case >= 0x09 and <= 0x0F: _pic.EndOfInterrupt(); break;
+            case 0x09: KeyboardInterrupt(); break;
+            case >= 0x0A and <= 0x0F: _pic.EndOfInterrupt(); break;
             case 0x10: VideoService(); break;
             case 0x11: Cpu.Eax = (Cpu.Eax & 0xFFFF_0000) | ReadWord(0x40, 0x10); break;
             case 0x12: Cpu.Eax = (Cpu.Eax & 0xFFFF_0000) | ReadWord(0x40, 0x13); break;

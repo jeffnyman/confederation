@@ -3,6 +3,8 @@ Confederation.Core.Machine
 Confederation.Core.Machine.A20.get -> bool
 Confederation.Core.Machine.A20.set -> void
 Confederation.Core.Machine.Cpu.get -> Confederation.Core.Processors.Intel386!
+Confederation.Core.Machine.DisplayHeight.get -> int
+Confederation.Core.Machine.DisplayWidth.get -> int
 Confederation.Core.Machine.ExitCode.get -> int
 Confederation.Core.Machine.Exited.get -> bool
 Confederation.Core.Machine.In(ushort port) -> byte
@@ -13,7 +15,10 @@ Confederation.Core.Machine.Log.get -> System.Action<string!>?
 Confederation.Core.Machine.Log.set -> void
 Confederation.Core.Machine.Machine(string! gameFolder, string! saveFolder) -> void
 Confederation.Core.Machine.Out(ushort port, byte value) -> void
+Confederation.Core.Machine.PressKey(byte scanCode, bool extended = false) -> void
 Confederation.Core.Machine.Read(uint address) -> byte
+Confederation.Core.Machine.ReleaseKey(byte scanCode, bool extended = false) -> void
+Confederation.Core.Machine.Render(System.Span<uint> pixels) -> void
 Confederation.Core.Machine.Run(long instructions) -> bool
 Confederation.Core.Machine.Time.get -> System.TimeSpan
 Confederation.Core.Machine.VideoMode.get -> int
@@ -73,3 +78,6 @@ Confederation.Core.Processors.Intel386.InterruptsEnabled.get -> bool
 Confederation.Core.Processors.Intel386.Ss.get -> ushort
 Confederation.Core.Processors.Intel386.Ss.set -> void
 Confederation.Core.Processors.Intel386.Step() -> void
+Confederation.Core.Screenshot
+static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, System.IO.Stream! stream) -> void
+static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, string! path) -> void

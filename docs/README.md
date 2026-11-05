@@ -26,5 +26,8 @@ games.
 5. [The DOS layer](the-dos-layer.md): answering DOS, the BIOS and expanded memory in C#,
    loading a program, keeping the game's folder untouched, the timer *Wing Commander* couldn't
    start without, and what the game asks for on its way to its first screen.
+6. [The VGA and the keyboard](the-vga-and-keyboard.md): planes, chained and unchained memory,
+   the palette and the retrace, the keyboard's scan codes and the BIOS's buffer, and *Wing
+   Commander*'s intro checked by screenshots.
 
-More notes will follow as the work does: VGA, sound, and each game as it comes up.
+More notes will follow as the work does: the player, sound, and each game as it comes up.

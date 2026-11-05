@@ -180,4 +180,5 @@ Two observations confirm guesses from [the games](the-games.md):
   overlay manager uses to load overlay code on demand.
 - **It wants EMS.** It doesn't ask for XMS.
 
-The log stops where the next part of the machine begins: the VGA.
+The log stops where the next part of the machine begins: the VGA, in
+[the next note](the-vga-and-keyboard.md).

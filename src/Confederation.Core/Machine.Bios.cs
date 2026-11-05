@@ -15,10 +15,6 @@ public sealed partial class Machine
     // the ticks in a day: the timer's 18.2 a second for 24 hours
     private const uint TicksPerDay = 0x1800B0;
 
-    private readonly Queue<ushort> _keys = new();
-
-    /// <summary>Queues a keystroke for the BIOS: the scan code in the high byte, the character in the low.</summary>
-    internal void QueueKey(ushort key) => _keys.Enqueue(key);
 
     private void InstallBios()
     {
@@ -110,11 +106,16 @@ public sealed partial class Machine
         switch (Ah)
         {
             case 0x00:
-                VideoMode = Al & 0x7F;
-                WriteByte(0x40, 0x49, (byte)VideoMode);
-                WriteWord(0x40, 0x4A, (ushort)(VideoMode is 0 or 1 ? 40 : VideoMode == 0x13 ? 40 : 80));
-                Trace($"10/00 set video mode {VideoMode:X2}h");
+            {
+                // bit 7 asks for the memory to be kept
+                int mode = Al & 0x7F;
+                _vga.SetMode(mode, clear: (Al & 0x80) == 0);
+                WriteByte(0x40, 0x49, (byte)mode);
+                WriteWord(0x40, 0x4A, (ushort)(mode is 0 or 1 or 0x13 ? 40 : 80));
+                Trace($"10/00 set video mode {mode:X2}h");
                 break;
+            }
+
             case 0x01: break; // cursor shape
             case 0x02: break; // cursor position
             case 0x03: SetCx(0x0607); SetDx(0); break;
@@ -132,7 +133,7 @@ public sealed partial class Machine
                 SetAx((ReadWord(0x40, 0x4A) << 8) | VideoMode);
                 Cpu.Ebx &= 0xFFFF_00FF;
                 break;
-            case 0x10: Trace($"10/10 palette, function {Al:X2}h: not kept until the VGA"); break;
+            case 0x10: PaletteService(); break;
             case 0x11:
                 if (Al == 0x30)
                 {
@@ -168,6 +169,50 @@ public sealed partial class Machine
         }
     }
 
+    /// <summary>INT 10h AH=10h: the palette. Only the DAC's 256 colors matter in the 256-color modes.</summary>
+    private void PaletteService()
+    {
+        int bx = (ushort)Cpu.Ebx, cx = (ushort)Cpu.Ecx, dx = (ushort)Cpu.Edx;
+        switch (Al)
+        {
+            case 0x10:
+                _vga.SetColor(bx & 0xFF, dx >> 8, cx >> 8, cx & 0xFF);
+                break;
+            case 0x12:
+                // a block of colors from ES:DX, three bytes each
+                for (int i = 0; i < cx; i++)
+                {
+                    uint at = (uint)(dx + (3 * i));
+                    _vga.SetColor((bx + i) & 0xFF, ReadByte(Cpu.Es, at), ReadByte(Cpu.Es, at + 1), ReadByte(Cpu.Es, at + 2));
+                }
+
+                break;
+            case 0x15:
+            {
+                var (red, green, blue) = _vga.GetColor(bx & 0xFF);
+                SetDx((red << 8) | (dx & 0xFF));
+                SetCx((green << 8) | blue);
+                break;
+            }
+
+            case 0x17:
+                for (int i = 0; i < cx; i++)
+                {
+                    var (red, green, blue) = _vga.GetColor((bx + i) & 0xFF);
+                    uint at = (uint)(dx + (3 * i));
+                    WriteByte(Cpu.Es, at, red);
+                    WriteByte(Cpu.Es, at + 1, green);
+                    WriteByte(Cpu.Es, at + 2, blue);
+                }
+
+                break;
+            default:
+                // the EGA's 16-entry palette and the rest, which 256-color modes don't use
+                Trace($"10/10 palette function {Al:X2}h ignored");
+                break;
+        }
+    }
+
     /// <summary>INT 15h, the AT's system services. Most report that they aren't supported.</summary>
     private void SystemService()
     {
@@ -197,7 +242,7 @@ public sealed partial class Machine
         {
             case 0x00:
             case 0x10:
-                if (_keys.TryDequeue(out ushort key))
+                if (FromBuffer(take: true) is { } key)
                 {
                     SetAx(key);
                 }
@@ -209,7 +254,7 @@ public sealed partial class Machine
                 break;
             case 0x01:
             case 0x11:
-                if (_keys.TryPeek(out ushort waiting))
+                if (FromBuffer(take: false) is { } waiting)
                 {
                     SetAx(waiting);
                     SetReturnZero(false);
