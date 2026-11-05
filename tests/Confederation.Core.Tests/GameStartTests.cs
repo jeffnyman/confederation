@@ -54,6 +54,39 @@ public sealed class GameStartTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Wing_Commander_goes_by_keyboard_to_the_barracks()
+    {
+        if (TestData.Game("Wing Commander") is not { } folder)
+        {
+            return;
+        }
+
+        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        machine.Load("WC.EXE");
+
+        // a key goes down and, a tenth of a second later, comes up, as a quick press does
+        void Press(byte code)
+        {
+            machine.PressKey(code);
+            machine.Run(machine.InstructionsPerSecond / 10);
+            machine.ReleaseKey(code);
+        }
+
+        // Space cuts the intro short and Enter ends it, at the campaign menu; Enter there starts
+        // the Vega campaign, in the Tiger's Claw's rec room
+        RunUntil(machine, () => machine.Time.TotalSeconds >= 10, 50_000_000);
+        Press(0x39);
+        machine.Run(12L * machine.InstructionsPerSecond);
+        Press(0x1C);
+        machine.Run(12L * machine.InstructionsPerSecond);
+        Assert.DoesNotContain(_log, line => line.Contains("RECROOM.VGA", StringComparison.OrdinalIgnoreCase));
+        Press(0x1C);
+        RunUntil(machine, () => _log.Any(line => line.Contains("open RECROOM.VGA", StringComparison.OrdinalIgnoreCase)), 10L * machine.InstructionsPerSecond);
+        machine.Run(2L * machine.InstructionsPerSecond);
+        Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc-barracks.png"));
+    }
+
     private void RunUntil(Machine machine, Func<bool> done, long limit)
     {
         string? error = null;

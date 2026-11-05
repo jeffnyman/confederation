@@ -89,6 +89,11 @@ public sealed partial class Machine
         {
             character = shift ? Shifted[scan] : Plain[scan];
         }
+        else if (extended)
+        {
+            // the keypad's Enter and / share codes with the main keys, after E0h
+            character = scan switch { 0x1C => '\r', 0x35 => '/', _ => 0 };
+        }
 
         if ((shifts & Alt) != 0)
         {

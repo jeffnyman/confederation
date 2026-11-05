@@ -1,5 +1,7 @@
 <Project>
   <ItemGroup>
+    <!-- SDL3 for the player's window and input -->
+    <PackageVersion Include="ppy.SDL3-CS" Version="2026.1002.1" />
     <!-- keeps the library's public surface in src/Confederation.Core/PublicAPI.*.txt, reviewed in diffs -->
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

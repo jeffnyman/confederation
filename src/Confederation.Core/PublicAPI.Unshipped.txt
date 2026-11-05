@@ -10,6 +10,8 @@ Confederation.Core.Machine.Exited.get -> bool
 Confederation.Core.Machine.In(ushort port) -> byte
 Confederation.Core.Machine.InstructionsPerSecond.get -> int
 Confederation.Core.Machine.InstructionsPerSecond.set -> void
+Confederation.Core.Machine.Joysticks.get -> int
+Confederation.Core.Machine.Joysticks.set -> void
 Confederation.Core.Machine.Load(string! program, string! arguments = "") -> void
 Confederation.Core.Machine.Log.get -> System.Action<string!>?
 Confederation.Core.Machine.Log.set -> void
@@ -20,6 +22,8 @@ Confederation.Core.Machine.Read(uint address) -> byte
 Confederation.Core.Machine.ReleaseKey(byte scanCode, bool extended = false) -> void
 Confederation.Core.Machine.Render(System.Span<uint> pixels) -> void
 Confederation.Core.Machine.Run(long instructions) -> bool
+Confederation.Core.Machine.SetJoystickAxis(int axis, float value) -> void
+Confederation.Core.Machine.SetJoystickButton(int button, bool down) -> void
 Confederation.Core.Machine.Time.get -> System.TimeSpan
 Confederation.Core.Machine.VideoMode.get -> int
 Confederation.Core.Machine.Write(uint address, byte value) -> void
@@ -78,6 +82,8 @@ Confederation.Core.Processors.Intel386.InterruptsEnabled.get -> bool
 Confederation.Core.Processors.Intel386.Ss.get -> ushort
 Confederation.Core.Processors.Intel386.Ss.set -> void
 Confederation.Core.Processors.Intel386.Step() -> void
+Confederation.Core.ScanCodes
 Confederation.Core.Screenshot
+static Confederation.Core.ScanCodes.TryFromUsb(int usage, out byte scanCode, out bool extended) -> bool
 static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, System.IO.Stream! stream) -> void
 static Confederation.Core.Screenshot.WritePng(Confederation.Core.Machine! machine, string! path) -> void

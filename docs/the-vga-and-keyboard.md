@@ -148,3 +148,5 @@ The service log, read past the mode set:
   lives in EMS too.
 - The intro is silent. Sound is step 5 of the [roadmap](../ROADMAP.md): the game probes the AdLib
   at ports 388h and 389h, and finds nothing yet.
+
+Next, the machine gets a window and a player: [the player](the-player.md).

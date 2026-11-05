@@ -14,9 +14,16 @@ DOSBox is never wrapped or linked.
 ## Status
 
 The CPU is done: a 386 in real mode that matches a real chip across 1.76 million captured test
-instructions. DOS, the BIOS, expanded memory and the timer are answered well enough that
-*Wing Commander* plays its intro, silently, rendered to screenshots in the tests. There's no
-window to play in yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+instructions. DOS, the BIOS, expanded memory, the timer, the VGA, the keyboard and the joystick
+port are answered well enough that *Wing Commander* plays in a window, by keyboard or gamepad,
+though silently for now. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+
+```
+dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
+```
+
+The game's folder is only read; saves go to a folder of their own. F11 is full screen, F12 full
+speed, Pause pauses, and `--help` lists the rest.
 
 | Game | Tier |
 |---|---|

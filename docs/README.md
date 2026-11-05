@@ -29,5 +29,8 @@ games.
 6. [The VGA and the keyboard](the-vga-and-keyboard.md): planes, chained and unchained memory,
    the palette and the retrace, the keyboard's scan codes and the BIOS's buffer, and *Wing
    Commander*'s intro checked by screenshots.
+7. [The player](the-player.md): the window, holding the game to real time at its own speed, the
+   keyboard's scan codes, the PC's odd analog joystick port and a gamepad on it, and testing a
+   game by keyboard without a person at the keys.
 
-More notes will follow as the work does: the player, sound, and each game as it comes up.
+More notes will follow as the work does: sound, and each game as it comes up.

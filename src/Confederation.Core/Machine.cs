@@ -39,6 +39,7 @@ public sealed partial class Machine : ICpuBus
     private readonly IntervalTimer _timer = new();
     private readonly Vga _vga = new();
     private readonly KeyboardController _keyboard = new();
+    private readonly GamePort _gamePort = new();
 
     // the time, counted in instructions, with those the processor would have run while halted
     private long _time;
@@ -105,6 +106,25 @@ public sealed partial class Machine : ICpuBus
 
     /// <summary>The emulated time since the machine started.</summary>
     public TimeSpan Time => TimeSpan.FromSeconds((double)_time / InstructionsPerSecond);
+
+    /// <summary>
+    /// How many analog joysticks are plugged into the game port: 0, 1 or 2. Games look for them
+    /// when they start, so this is best set before running.
+    /// </summary>
+    public int Joysticks
+    {
+        get => _gamePort.Sticks;
+        set => _gamePort.Sticks = Math.Clamp(value, 0, 2);
+    }
+
+    /// <summary>
+    /// Moves a joystick axis: 0 and 1 are the first stick's x and y, 2 and 3 the second's. The
+    /// value runs from -1 (left, or up) through 0 (centred) to 1 (right, or down).
+    /// </summary>
+    public void SetJoystickAxis(int axis, float value) => _gamePort.SetAxis(axis & 3, value);
+
+    /// <summary>Presses or lets go of a joystick button: 0 and 1 are the first stick's, 2 and 3 the second's.</summary>
+    public void SetJoystickButton(int button, bool down) => _gamePort.SetButton(button & 3, down);
 
     /// <summary>Whether the A20 gate is open, so that addresses past 1 MB reach the high memory area.</summary>
     public bool A20 { get; set; }
@@ -233,6 +253,8 @@ public sealed partial class Machine : ICpuBus
                 return _keyboard.In(port);
             case 0x92:
                 return (byte)(A20 ? 0x02 : 0x00);
+            case 0x201:
+                return _gamePort.Read(Time.TotalSeconds);
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
             case 0x3D5:
@@ -275,6 +297,9 @@ public sealed partial class Machine : ICpuBus
             case 0x92:
                 // the fast A20 gate of later machines
                 A20 = (value & 0x02) != 0;
+                break;
+            case 0x201:
+                _gamePort.Write(Time.TotalSeconds);
                 break;
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
