@@ -23,5 +23,8 @@ games.
 4. [The x86 CPU](the-x86-cpu.md): why a 386, how the processor is built, how it was tested
    against 1.7 million instructions captured from a real chip, and what the chip does that its
    manuals don't say.
+5. [The DOS layer](the-dos-layer.md): answering DOS, the BIOS and expanded memory in C#,
+   loading a program, keeping the game's folder untouched, the timer *Wing Commander* couldn't
+   start without, and what the game asks for on its way to its first screen.
 
-More notes will follow as the work does: the DOS layer, VGA, sound, and each game as it comes up.
+More notes will follow as the work does: VGA, sound, and each game as it comes up.

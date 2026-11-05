@@ -8,13 +8,13 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
 1. **x86 CPU.** *Done.* A 386 in real mode, every instruction but the coprocessor's and
    protected mode's, checked against all 1.76 million cases of the SingleStepTests 80386
    real-mode suite ([docs/the-x86-cpu.md](docs/the-x86-cpu.md)).
-2. **The DOS layer.** An MZ loader with relocations, and DOS, BIOS and EMS services answered in C#
-   (`INT 21h`, `INT 10h`, `INT 16h`, `INT 1Ah`, `INT 67h`) against the game's own folder. A trace of
-   every call the games make, which documents what they need. Milestone: `WC.EXE` runs until it
-   asks for a video mode.
-3. **The machine.** The 8253 timer, the 8259 interrupt controller, the keyboard controller and VGA
-   mode 13h with its palette, plus Mode X if the games use it. Milestone: the *Wing Commander*
-   intro, rendered to images in the tests.
+2. **The DOS layer.** *Done.* An MZ loader, DOS, BIOS and EMS answered in C# against the game's
+   folder (never written; saves go elsewhere), and a log of every call. The 8253 timer and 8259
+   interrupt controller came early, because the game times delays with the timer. `WC.EXE` runs
+   until it sets VGA mode 13h ([docs/the-dos-layer.md](docs/the-dos-layer.md)).
+3. **The machine.** The keyboard controller and VGA mode 13h with its palette and retrace status,
+   plus Mode X if the games use it. Milestone: the *Wing Commander* intro, rendered to images in
+   the tests.
 4. **The player.** An SDL3 window, keyboard, and gamepads mapped onto the analog joystick port. Each
    game held to its own speed.
 5. **Sound.** OPL2/OPL3 FM for AdLib and Sound Blaster music; the MPU-401 feeding an MT-32 (from

@@ -87,10 +87,11 @@ Some design choices worth knowing:
   included, and the stack as it was. A `REP` instruction that faults partway keeps the progress
   it made in CX, SI and DI, as on the chip.
 
-What isn't there yet: protected mode, the floating-point unit (a program that probes for one finds
-none), the trap flag's single-stepping, and the line through which hardware interrupts arrive.
-The interrupt line comes with the interrupt controller, in the next step of the
-[roadmap](../ROADMAP.md).
+Hardware interrupts arrive between instructions through `Interrupt(vector)`, which the machine
+calls when its interrupt controller has one and the interrupt flag is set (see
+[the DOS layer](the-dos-layer.md#the-timer-early)). What isn't there yet: protected mode, the
+floating-point unit (a program that probes for one finds none), the trap flag's single-stepping,
+and the one-instruction delay after `STI` before interrupts are taken.
 
 ## Testing against a real chip
 

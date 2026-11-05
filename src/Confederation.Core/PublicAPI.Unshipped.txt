@@ -1,4 +1,23 @@
 #nullable enable
+Confederation.Core.Machine
+Confederation.Core.Machine.A20.get -> bool
+Confederation.Core.Machine.A20.set -> void
+Confederation.Core.Machine.Cpu.get -> Confederation.Core.Processors.Intel386!
+Confederation.Core.Machine.ExitCode.get -> int
+Confederation.Core.Machine.Exited.get -> bool
+Confederation.Core.Machine.In(ushort port) -> byte
+Confederation.Core.Machine.InstructionsPerSecond.get -> int
+Confederation.Core.Machine.InstructionsPerSecond.set -> void
+Confederation.Core.Machine.Load(string! program, string! arguments = "") -> void
+Confederation.Core.Machine.Log.get -> System.Action<string!>?
+Confederation.Core.Machine.Log.set -> void
+Confederation.Core.Machine.Machine(string! gameFolder, string! saveFolder) -> void
+Confederation.Core.Machine.Out(ushort port, byte value) -> void
+Confederation.Core.Machine.Read(uint address) -> byte
+Confederation.Core.Machine.Run(long instructions) -> bool
+Confederation.Core.Machine.Time.get -> System.TimeSpan
+Confederation.Core.Machine.VideoMode.get -> int
+Confederation.Core.Machine.Write(uint address, byte value) -> void
 Confederation.Core.Processors.ICpuBus
 Confederation.Core.Processors.ICpuBus.In(ushort port) -> byte
 Confederation.Core.Processors.ICpuBus.Out(ushort port, byte value) -> void
@@ -45,8 +64,12 @@ Confederation.Core.Processors.Intel386.Gs.get -> ushort
 Confederation.Core.Processors.Intel386.Gs.set -> void
 Confederation.Core.Processors.Intel386.Halted.get -> bool
 Confederation.Core.Processors.Intel386.Halted.set -> void
+Confederation.Core.Processors.Intel386.HostCall.get -> System.Action<byte>?
+Confederation.Core.Processors.Intel386.HostCall.set -> void
 Confederation.Core.Processors.Intel386.Instructions.get -> long
 Confederation.Core.Processors.Intel386.Intel386(Confederation.Core.Processors.ICpuBus! bus) -> void
+Confederation.Core.Processors.Intel386.Interrupt(int vector) -> void
+Confederation.Core.Processors.Intel386.InterruptsEnabled.get -> bool
 Confederation.Core.Processors.Intel386.Ss.get -> ushort
 Confederation.Core.Processors.Intel386.Ss.set -> void
 Confederation.Core.Processors.Intel386.Step() -> void

@@ -105,6 +105,13 @@ public sealed partial class Intel386
             case >= 0x20 and <= 0x26:
                 throw new NotSupportedException($"The 386 instruction 0F {opcode:X2} isn't emulated yet.");
 
+            // not an instruction on any x86: the emulator's own escape to code outside the
+            // machine, followed by a byte saying which service. Without a handler it's invalid,
+            // as on the chip
+            case 0xFF when HostCall is not null:
+                HostCall(FetchByte());
+                return;
+
             default: throw InvalidOpcode();
         }
     }

@@ -143,6 +143,14 @@ public sealed partial class Intel386
     /// <summary>The vector of the last fault an instruction raised, for debugging; -1 before any.</summary>
     internal int LastFault { get; private set; } = -1;
 
+    /// <summary>
+    /// Code outside the machine that the bytes <c>0F FF</c> and a service number call, given the
+    /// number. No x86 has an instruction there, so programs never use them; the emulator puts
+    /// them in its BIOS and DOS to answer interrupts in C#. With no handler set they're an invalid
+    /// opcode, as on the chip.
+    /// </summary>
+    public Action<byte>? HostCall { get; set; }
+
     /// <summary>The number of instructions run, faulting ones and repeated string instructions counted once.</summary>
     public long Instructions { get; private set; }
 
@@ -179,6 +187,19 @@ public sealed partial class Intel386
             LastFault = fault.Vector;
             EnterInterrupt(fault.Vector, _start);
         }
+    }
+
+    /// <summary>Whether the interrupt flag is set, so that hardware interrupts are taken.</summary>
+    public bool InterruptsEnabled => (_flags & Flag.Interrupt) != 0;
+
+    /// <summary>
+    /// Takes a hardware interrupt between instructions, as the interrupt controller delivers it,
+    /// waking the processor from a <c>HLT</c>. The caller checks <see cref="InterruptsEnabled"/>.
+    /// </summary>
+    public void Interrupt(int vector)
+    {
+        Halted = false;
+        EnterInterrupt(vector, _eip);
     }
 
     private void LoadSegment(int segment, ushort selector)

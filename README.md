@@ -14,7 +14,8 @@ DOSBox is never wrapped or linked.
 ## Status
 
 The CPU is done: a 386 in real mode that matches a real chip across 1.76 million captured test
-instructions. Nothing plays yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+instructions. DOS, the BIOS, expanded memory and the timer are answered well enough that
+*Wing Commander* loads and sets its VGA mode. Nothing is drawn yet. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 | Game | Tier |
 |---|---|

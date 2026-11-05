@@ -1,0 +1,282 @@
+namespace Confederation.Core;
+
+// The BIOS: the interrupt table, the BIOS data area, and the BIOS services answered in C#.
+public sealed partial class Machine
+{
+    // the stubs, one per vector, at F000:0100 + 4 * vector; an IRET for the rest at F000:0000
+    private const ushort StubBase = 0x0100;
+
+    // the vectors answered in C#: the BIOS's, DOS's and the mouse driver's (EMS installs its own)
+    private static readonly byte[] Services = [0x10, 0x11, 0x12, 0x15, 0x16, 0x1A, 0x20, 0x21, 0x2F, 0x33];
+
+    // the BIOS's timer interrupt handler, past the stubs
+    private const ushort TimerHandler = 0x0500;
+
+    // the ticks in a day: the timer's 18.2 a second for 24 hours
+    private const uint TicksPerDay = 0x1800B0;
+
+    private readonly Queue<ushort> _keys = new();
+
+    /// <summary>Queues a keystroke for the BIOS: the scan code in the high byte, the character in the low.</summary>
+    internal void QueueKey(ushort key) => _keys.Enqueue(key);
+
+    private void InstallBios()
+    {
+        const uint bios = (uint)BiosSegment << 4;
+
+        // every vector starts at an IRET, so an interrupt nothing handles does nothing
+        WriteRom(bios, [0xCF]);
+        for (int vector = 0; vector < 256; vector++)
+        {
+            SetVector(vector, BiosSegment, 0x0000);
+        }
+
+        foreach (byte vector in Services)
+        {
+            ushort offset = (ushort)(StubBase + (4 * vector));
+            WriteRom(bios + offset, [0x0F, 0xFF, vector, 0xCF]);
+            SetVector(vector, BiosSegment, offset);
+        }
+
+        // the hardware interrupts: IRQ 0, the timer, counts the time of day and calls INT 1Ch,
+        // the hook programs are meant to use; the rest only end the interrupt
+        WriteRom(bios + TimerHandler, [0x0F, 0xFF, 0x08, 0xCD, 0x1C, 0xCF]);
+        SetVector(0x08, BiosSegment, TimerHandler);
+        for (byte vector = 0x09; vector <= 0x0F; vector++)
+        {
+            ushort offset = (ushort)(StubBase + (4 * vector));
+            WriteRom(bios + offset, [0x0F, 0xFF, vector, 0xCF]);
+            SetVector(vector, BiosSegment, offset);
+        }
+
+        // the BIOS data area at 0040:0000, the parts programs read
+        WriteWord(0x40, 0x10, 0x1021);   // equipment: a floppy drive, 80-column color video, a game port
+        WriteWord(0x40, 0x13, 640);      // conventional memory in KB
+        WriteWord(0x40, 0x1A, 0x1E);     // keyboard buffer head and tail, empty
+        WriteWord(0x40, 0x1C, 0x1E);
+        WriteByte(0x40, 0x49, 3);        // video mode
+        WriteWord(0x40, 0x4A, 80);       // text columns
+        WriteWord(0x40, 0x63, 0x3D4);    // the CRT controller's port
+        WriteByte(0x40, 0x84, 24);       // text rows, less one
+
+        // the model byte at F000:FFFE: FCh, an AT-class machine
+        WriteRom(0xF_FFFE, [0xFC]);
+    }
+
+    /// <summary>
+    /// IRQ 0's work in the BIOS: the tick count in the data area goes up, wrapping at midnight
+    /// with a flag set for INT 1Ah to report. The interrupt is ended here, before the handler's
+    /// INT 1Ch rather than after it, which lets a slow hook be interrupted by the next tick.
+    /// </summary>
+    private void TimerTick()
+    {
+        uint ticks = ReadWord(0x40, 0x6C) | ((uint)ReadWord(0x40, 0x6E) << 16);
+        if (++ticks >= TicksPerDay)
+        {
+            ticks = 0;
+            WriteByte(0x40, 0x70, 1);
+        }
+
+        WriteWord(0x40, 0x6C, (ushort)ticks);
+        WriteWord(0x40, 0x6E, (ushort)(ticks >> 16));
+        _pic.EndOfInterrupt();
+    }
+
+    internal void SetVector(int vector, ushort segment, ushort offset)
+    {
+        WriteWord(0, (uint)vector * 4, offset);
+        WriteWord(0, ((uint)vector * 4) + 2, segment);
+    }
+
+    private byte Ah => (byte)(Cpu.Eax >> 8);
+
+    private byte Al => (byte)Cpu.Eax;
+
+    private void SetAx(int value) => Cpu.Eax = (Cpu.Eax & 0xFFFF_0000) | (ushort)value;
+
+    private void SetAl(int value) => Cpu.Eax = (Cpu.Eax & 0xFFFF_FF00) | (byte)value;
+
+    private void SetAh(int value) => Cpu.Eax = (Cpu.Eax & 0xFFFF_00FF) | ((uint)(byte)value << 8);
+
+    private void SetBx(int value) => Cpu.Ebx = (Cpu.Ebx & 0xFFFF_0000) | (ushort)value;
+
+    private void SetCx(int value) => Cpu.Ecx = (Cpu.Ecx & 0xFFFF_0000) | (ushort)value;
+
+    private void SetDx(int value) => Cpu.Edx = (Cpu.Edx & 0xFFFF_0000) | (ushort)value;
+
+    /// <summary>INT 10h, the video BIOS. Only what's needed until the VGA is emulated.</summary>
+    private void VideoService()
+    {
+        switch (Ah)
+        {
+            case 0x00:
+                VideoMode = Al & 0x7F;
+                WriteByte(0x40, 0x49, (byte)VideoMode);
+                WriteWord(0x40, 0x4A, (ushort)(VideoMode is 0 or 1 ? 40 : VideoMode == 0x13 ? 40 : 80));
+                Trace($"10/00 set video mode {VideoMode:X2}h");
+                break;
+            case 0x01: break; // cursor shape
+            case 0x02: break; // cursor position
+            case 0x03: SetCx(0x0607); SetDx(0); break;
+            case 0x05: break; // display page
+            case 0x06:
+            case 0x07:
+                break; // scroll a window
+            case 0x08: SetAx(0x0720); break;
+            case 0x09:
+            case 0x0A:
+            case 0x0E:
+                Trace($"10/{Ah:X2} text '{(char)Al}'");
+                break;
+            case 0x0F:
+                SetAx((ReadWord(0x40, 0x4A) << 8) | VideoMode);
+                Cpu.Ebx &= 0xFFFF_00FF;
+                break;
+            case 0x10: Trace($"10/10 palette, function {Al:X2}h: not kept until the VGA"); break;
+            case 0x11:
+                if (Al == 0x30)
+                {
+                    // font information: 16-line characters, 25 rows
+                    SetCx(16);
+                    SetDx(24);
+                }
+
+                break;
+            case 0x12:
+                if ((byte)Cpu.Ebx == 0x10)
+                {
+                    // EGA information: color, 256 KB
+                    SetBx(0x0003);
+                    SetCx(0x0009);
+                }
+
+                break;
+            case 0x1A:
+                if (Al == 0x00)
+                {
+                    // display combination: a VGA with a color display
+                    SetAl(0x1A);
+                    SetBx(0x0008);
+                }
+
+                break;
+            case 0x4F:
+                // VESA: there's none, which a caller tells from AL not being 4Fh
+                break;
+            default:
+                throw new NotSupportedException($"INT 10h function {Ah:X2}h isn't provided.");
+        }
+    }
+
+    /// <summary>INT 15h, the AT's system services. Most report that they aren't supported.</summary>
+    private void SystemService()
+    {
+        switch (Ah)
+        {
+            case 0x88:
+                // extended memory in KB: none offered this way
+                SetAx(0);
+                SetReturnCarry(false);
+                break;
+            case 0x86:
+                // wait a number of microseconds: returns at once
+                SetReturnCarry(false);
+                break;
+            default:
+                Trace($"15/{Ah:X2} not supported");
+                SetAh(0x86);
+                SetReturnCarry(true);
+                break;
+        }
+    }
+
+    /// <summary>INT 16h, the keyboard: keystrokes from the machine's queue.</summary>
+    private void KeyboardService()
+    {
+        switch (Ah)
+        {
+            case 0x00:
+            case 0x10:
+                if (_keys.TryDequeue(out ushort key))
+                {
+                    SetAx(key);
+                }
+                else
+                {
+                    RepeatInterrupt();
+                }
+
+                break;
+            case 0x01:
+            case 0x11:
+                if (_keys.TryPeek(out ushort waiting))
+                {
+                    SetAx(waiting);
+                    SetReturnZero(false);
+                }
+                else
+                {
+                    SetReturnZero(true);
+                }
+
+                break;
+            case 0x02:
+            case 0x12:
+                SetAl(ReadByte(0x40, 0x17));
+                break;
+            default:
+                throw new NotSupportedException($"INT 16h function {Ah:X2}h isn't provided.");
+        }
+    }
+
+    /// <summary>INT 1Ah, the clock: the BIOS tick count, and the real-time clock from the host's.</summary>
+    private void ClockService()
+    {
+        static int Bcd(int value) => ((value / 10) << 4) | (value % 10);
+        var now = DateTime.Now;
+        switch (Ah)
+        {
+            case 0x00:
+                SetCx(ReadWord(0x40, 0x6E));
+                SetDx(ReadWord(0x40, 0x6C));
+                SetAl(ReadByte(0x40, 0x70));
+                WriteByte(0x40, 0x70, 0);
+                break;
+            case 0x02:
+                SetCx((Bcd(now.Hour) << 8) | Bcd(now.Minute));
+                SetDx(Bcd(now.Second) << 8);
+                SetReturnCarry(false);
+                break;
+            case 0x04:
+                SetCx((Bcd(now.Year / 100) << 8) | Bcd(now.Year % 100));
+                SetDx((Bcd(now.Month) << 8) | Bcd(now.Day));
+                SetReturnCarry(false);
+                break;
+            default:
+                throw new NotSupportedException($"INT 1Ah function {Ah:X2}h isn't provided.");
+        }
+    }
+
+    /// <summary>
+    /// INT 2Fh, the multiplex interrupt, through which programs ask whether drivers and
+    /// environments are present. Nothing is, yet: the answers leave AL at 0.
+    /// </summary>
+    private void MultiplexService()
+    {
+        Trace($"2F/{(ushort)Cpu.Eax:X4} nothing installed");
+        if (Al == 0x00)
+        {
+            SetAl(0);
+        }
+    }
+
+    /// <summary>INT 33h, the mouse driver. None is installed yet.</summary>
+    private void MouseService()
+    {
+        Trace($"33/{(ushort)Cpu.Eax:X4} no mouse");
+        if ((ushort)Cpu.Eax == 0)
+        {
+            SetAx(0);
+        }
+    }
+}

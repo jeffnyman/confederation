@@ -45,25 +45,35 @@ Reading the MZ header fields:
 **More than half of each file sits after the part DOS loads.** That's the signature of
 *overlays*: code that is not kept in memory all the time but read from the executable on demand.
 Borland's overlay manager (VROOMM) worked this way. It could also cache overlays in EMS, which fits
-the next observation. **(to confirm)** that these are Borland overlays and how the game loads
-them. If so, the emulator must let the game re-open and read its own `.EXE`, which file-level DOS
-HLE handles naturally.
+the next observation.
+
+**Confirmed for *Wing Commander*** ([the DOS layer](the-dos-layer.md)): at startup the game opens
+`WC.EXE`, seeks to offset 134,080, exactly the end of the load image, and installs a handler for
+INT 3Fh, the vector Borland's overlay manager uses. File-level DOS emulation handles this with no
+special support.
 
 ### Expanded memory (observed)
 
 Both executables contain the strings `Expanded Memory Detected.` and `Expanded Memory fully used.`
 So both games look for EMS. GOG's DOSBox configs turn on EMS and XMS for all three games.
-Confederation will need to provide EMS through the `INT 67h` interface. **(to confirm)** which EMS
-functions each game calls, and whether either needs XMS.
+Confederation will need to provide EMS through the `INT 67h` interface.
+
+**Confirmed for *Wing Commander***: it calls EMS functions 40h to 44h and 46h, allocates every
+free page (4 MB here), which is what "Expanded Memory fully used" reports, and maps pages
+constantly while loading graphics. It doesn't ask for XMS. *Wing Commander II* is still to be
+traced.
 
 ### The `loadfix` question (observed, unexplained)
 
-GOG launches *Wing Commander II* and its *Special Operations* with `loadfix -32`. That DOSBox
+GOG launches *Wing Commander* and *The Secret Missions* with `loadfix -1`, and *Wing Commander II*
+and its *Special Operations* with `loadfix -32`. That DOSBox
 command takes 32 KB of low memory before starting the program, so the game loads higher in memory
 than it otherwise would. The usual reason is EXEPACK's "Packed file is corrupt" bug for programs
 loaded below 64 KB, but `WC2.EXE` is not EXEPACK-compressed. So the reason here is still open.
 **(to confirm)** what goes wrong without it. A focused emulator can simply load the game at the
-segment that works and record why.
+segment that works and record why. Confederation loads programs at about 40 KB, where a real DOS
+machine would, which is higher than either `LOADFIX` puts them (see
+[the DOS layer](the-dos-layer.md#where-the-program-goes)).
 
 ### Speed (observed)
 
