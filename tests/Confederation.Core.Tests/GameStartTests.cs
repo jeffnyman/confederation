@@ -152,6 +152,95 @@ public sealed class GameStartTests : IDisposable
         Assert.True(rms > 1000, $"the speech is nearly silent: {rms:F0}");
     }
 
+    [Fact]
+    public void Wing_Commander_II_signs_on_a_pilot_and_flies()
+    {
+        if (TestData.Game("Wing Commander II") is not { } folder)
+        {
+            return;
+        }
+
+        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        machine.Load("WC2.EXE");
+
+        void Wait(double seconds) => machine.Run((long)(machine.InstructionsPerSecond * seconds));
+        void Press(byte code, double seconds = 0.15)
+        {
+            machine.PressKey(code);
+            Wait(seconds);
+            machine.ReleaseKey(code);
+            Wait(0.3);
+        }
+
+        void Type(string text)
+        {
+            const string rows = "qwertyuiop....asdfghjkl.....zxcvbnm";
+            foreach (char c in text)
+            {
+                int i = rows.IndexOf(c);
+                Press((byte)(i < 14 ? 0x10 + i : i < 28 ? 0x1E + i - 14 : 0x2C + i - 28), 0.08);
+            }
+
+            Press(0x1C);
+            Wait(2);
+        }
+
+        bool Logged(string text) => _log.Any(line => line.Contains(text, StringComparison.OrdinalIgnoreCase));
+
+        // at the title menu, Up and Enter start a new game; Esc skips each scene of the
+        // introduction, which ends at the personnel database
+        Wait(65);
+        Press(0x48, 0.3);
+        Press(0x1C);
+        while (!Logged("open options.v00") && machine.Time.TotalSeconds < 400)
+        {
+            Wait(14);
+            if (!Logged("open options.v00"))
+            {
+                Press(0x01);
+            }
+        }
+
+        Assert.True(Logged("open options.v00"), "the introduction didn't end at the personnel database");
+
+        // the database takes no keys for its first few seconds; then C creates a pilot, whose
+        // names are typed into prompts the game reads through DOS. That only works because the
+        // BIOS says it has the keyboard intercept (INT 15h function C0h), so the game watches
+        // keys through INT 15h function 4Fh and leaves the BIOS to buffer them for DOS.
+        Wait(12);
+        Press(0x2E);
+        Wait(3);
+        Type("christopher");
+        Type("blair");
+        Type("maverick");
+        Assert.Contains(_log, line => line.Contains("21/25 set vector 15h", StringComparison.Ordinal));
+        Assert.DoesNotContain(_log, line => line.Contains("21/25 set vector 09h", StringComparison.Ordinal));
+        string save = Directory.EnumerateFiles(_saves, "SAVEGAME.WC2", SearchOption.AllDirectories).Single();
+        Assert.Contains("maverick", File.ReadAllText(save, System.Text.Encoding.Latin1));
+
+        // in the quarters, Enter on "Fly mission" goes to the story and the briefing, and Esc
+        // skips each scene to the launch: the cockpit and the first nav point
+        Wait(4);
+        Press(0x1C);
+        double launchBy = machine.Time.TotalSeconds + 120;
+        while (!Logged("open pcship.v00") && machine.Time.TotalSeconds < launchBy)
+        {
+            Wait(5);
+            if (!Logged("open pcship.v00"))
+            {
+                Press(0x01);
+            }
+        }
+
+        Assert.True(Logged("open pcship.v00"), "no launch");
+        Wait(8);
+        Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc2-cockpit.png"));
+        var pixels = new uint[machine.DisplayWidth * machine.DisplayHeight];
+        machine.Render(pixels);
+        Assert.True(pixels.Distinct().Count() >= 32, "the cockpit is nearly blank");
+        Assert.DoesNotContain(_log, line => line.StartsWith("port ", StringComparison.Ordinal) || line.Contains("is not done", StringComparison.Ordinal));
+    }
+
     private static void WriteWav(string path, List<short> samples)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

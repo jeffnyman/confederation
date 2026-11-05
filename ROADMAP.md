@@ -24,8 +24,11 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
    and GUE's port of Munt (*done*: both games play their Roland scores, chosen with
    `--music roland`); the Sound Blaster DSP and DMA for digital sound (*done*: *Wing Commander
    II* speaks in its introduction).
-6. ***Wing Commander II.*** Speech, its EMS use, and the `loadfix` question
-   ([docs/the-games.md](docs/the-games.md)). *Special Operations* 1 and 2.
+6. ***Wing Commander II.*** *Done*: it plays from the title, through its speech, to signing on a
+   pilot and flying the first mission, once the BIOS answered for the keyboard intercept; its EMS
+   use is traced, `loadfix` isn't needed, and *Special Operations* 1 and 2 reach their menus
+   ([docs/wing-commander-ii.md](docs/wing-commander-ii.md)). Still to check: a mission played
+   through.
 7. **Per-game profiles.** Save states, each game's speed, controls and sound device, and the
    *Secret Missions* and *Special Operations* chosen from one place.
 

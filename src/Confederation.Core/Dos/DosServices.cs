@@ -299,6 +299,9 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
 
     // ---- INT 21h -----------------------------------------------------------------------------
 
+    // the scan code still to come after the zero that DOS gives for a key with no character
+    private byte? _extendedKey;
+
     private void Ok() => machine.SetReturnCarry(false);
 
     private void Fail(int error)
@@ -324,9 +327,17 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
             case 0x06:
                 if (cpu.Dl == 0xFF)
                 {
-                    // direct console input: nothing waiting
-                    cpu.Al = 0;
-                    machine.SetReturnZero(true);
+                    // direct console input: a key if one is waiting, without waiting for one
+                    if (NextKey() is { } key)
+                    {
+                        cpu.Al = key;
+                        machine.SetReturnZero(false);
+                    }
+                    else
+                    {
+                        cpu.Al = 0;
+                        machine.SetReturnZero(true);
+                    }
                 }
                 else
                 {
@@ -347,11 +358,23 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
                 }
 
                 break;
-            case 0x0B: cpu.Al = 0; break;
+            case 0x0B:
+                // whether a key is waiting
+                cpu.Al = _extendedKey is not null || machine.FromBuffer(take: false) is not null ? (byte)0xFF : (byte)0;
+                break;
             case 0x0C:
                 // flush the keyboard, then do the input function in AL
-                cpu.Ah = cpu.Al;
-                Call();
+                _extendedKey = null;
+                while (machine.FromBuffer(take: true) is not null)
+                {
+                }
+
+                if (cpu.Al is 0x01 or 0x06 or 0x07 or 0x08 or 0x0A)
+                {
+                    cpu.Ah = cpu.Al;
+                    Call();
+                }
+
                 break;
             case 0x0D: break;
             case 0x0E: cpu.Al = 3; break;
@@ -523,12 +546,52 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
         }
     }
 
+    /// <summary>
+    /// Functions 01h, 07h and 08h: the next key's character, waiting for one. DOS reads through
+    /// the BIOS's buffer; until a key is there, the call repeats, with interrupts able to come
+    /// in, so the key the program waits for can arrive.
+    /// </summary>
     private void ReadKey(bool echo)
     {
-        // DOS reads through the BIOS; until a key is there, the call repeats
-        machine.Trace("21/01-08 waiting for a key");
-        machine.RepeatInterrupt();
-        _ = echo;
+        if (NextKey() is not { } key)
+        {
+            machine.RepeatInterrupt();
+            return;
+        }
+
+        _registers.Al = key;
+        if (echo && key != 0)
+        {
+            ConsoleOut((char)key);
+        }
+    }
+
+    /// <summary>
+    /// The next character from the keyboard, or null when none is waiting. A key with no
+    /// character (an arrow, a function key) comes as two: a zero, then its scan code at the next
+    /// call, as DOS gives them.
+    /// </summary>
+    private byte? NextKey()
+    {
+        if (_extendedKey is { } scan)
+        {
+            _extendedKey = null;
+            return scan;
+        }
+
+        if (machine.FromBuffer(take: true) is not { } key)
+        {
+            return null;
+        }
+
+        byte character = (byte)key;
+        if (character is 0 or 0xE0)
+        {
+            _extendedKey = (byte)(key >> 8);
+            return 0;
+        }
+
+        return character;
     }
 
     private void ConsoleOut(char c)

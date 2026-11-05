@@ -9,8 +9,11 @@ public sealed partial class Machine
     // the vectors answered in C#: the BIOS's, DOS's and the mouse driver's (EMS installs its own)
     private static readonly byte[] Services = [0x10, 0x11, 0x12, 0x15, 0x16, 0x1A, 0x20, 0x21, 0x2F, 0x33];
 
-    // the BIOS's timer interrupt handler, past the stubs
+    // the BIOS's timer and keyboard interrupt handlers, past the stubs, and its system
+    // configuration table
     private const ushort TimerHandler = 0x0500;
+    private const ushort KeyboardHandler = 0x0510;
+    private const ushort ConfigurationTable = 0x0540;
 
     // the ticks in a day: the timer's 18.2 a second for 24 hours
     private const uint TicksPerDay = 0x1800B0;
@@ -38,12 +41,36 @@ public sealed partial class Machine
         // the hook programs are meant to use; the rest only end the interrupt
         WriteRom(bios + TimerHandler, [0x0F, 0xFF, 0x08, 0xCD, 0x1C, 0xCF]);
         SetVector(0x08, BiosSegment, TimerHandler);
-        for (byte vector = 0x09; vector <= 0x0F; vector++)
+        for (byte vector = 0x0A; vector <= 0x0F; vector++)
         {
             ushort offset = (ushort)(StubBase + (4 * vector));
             WriteRom(bios + offset, [0x0F, 0xFF, vector, 0xCF]);
             SetVector(vector, BiosSegment, offset);
         }
+
+        // IRQ 1, the keyboard, as an AT's BIOS has it: the scan code is offered to INT 15h
+        // function 4Fh first, the "keyboard intercept", and only if that hands it back (carry
+        // set) does the BIOS take it, into its buffer (in C#). Then the interrupt ends.
+        WriteRom(bios + KeyboardHandler,
+        [
+            0x50,               // push ax
+            0xE4, 0x60,         // in al,60h
+            0xB4, 0x4F,         // mov ah,4Fh
+            0xF9,               // stc
+            0xCD, 0x15,         // int 15h
+            0x73, 0x03,         // jnc done: the intercept kept the key
+            0x0F, 0xFF, 0x09,   // the scan code in AL, to the buffer
+            0xB0, 0x20,         // done: mov al,20h
+            0xE6, 0x20,         // out 20h,al
+            0x58,               // pop ax
+            0xCF,               // iret
+        ]);
+        SetVector(0x09, BiosSegment, KeyboardHandler);
+
+        // the system configuration table INT 15h function C0h points at: its length, the model
+        // (FCh, an AT) and submodel, the BIOS revision, and the first feature byte: a second
+        // interrupt controller, a real-time clock, and INT 09h calling INT 15h function 4Fh
+        WriteRom(bios + ConfigurationTable, [0x08, 0x00, 0xFC, 0x00, 0x00, 0x70, 0x00, 0x00, 0x00, 0x00]);
 
         // the BIOS data area at 0040:0000, the parts programs read
         WriteWord(0x40, 0x10, 0x1021);   // equipment: a floppy drive, 80-column color video, a game port
@@ -218,6 +245,19 @@ public sealed partial class Machine
     {
         switch (Ah)
         {
+            case 0x4F:
+                // the keyboard intercept, unhooked: the key goes on to the BIOS as it is
+                SetReturnCarry(true);
+                break;
+            case 0xC0:
+                // the system configuration: where the table is. Wing Commander II reads its
+                // feature byte to see whether it can watch the keyboard through the intercept
+                // above, leaving the BIOS to buffer keys for DOS, or must take INT 09h over.
+                Cpu.Es = BiosSegment;
+                Cpu.Ebx = (Cpu.Ebx & 0xFFFF_0000) | ConfigurationTable;
+                SetAh(0);
+                SetReturnCarry(false);
+                break;
             case 0x88:
                 // extended memory in KB: none offered this way
                 SetAx(0);

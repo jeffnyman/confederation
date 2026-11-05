@@ -36,5 +36,8 @@ games.
    it, making each sample just in time, letting the sound device set the pace, and the Roland
    MT-32 behind an MPU-401, with how the games' settings were worked out by trying them, and the
    Sound Blaster's digitized sound, the DMA controller that feeds it, and its interrupt on time.
+9. [*Wing Commander II*](wing-commander-ii.md): from the title to the cockpit, and how a key that
+   never arrived was followed through the game's own code to one BIOS call the machine didn't
+   answer; its expanded memory, `loadfix`, and the *Special Operations*.
 
-More notes will follow as the work does: the rest of the sound, and each game as it comes up.
+More notes will follow as the work does, and each game as it comes up.

@@ -60,8 +60,9 @@ Confederation will need to provide EMS through the `INT 67h` interface.
 
 **Confirmed for *Wing Commander***: it calls EMS functions 40h to 44h and 46h, allocates every
 free page (4 MB here), which is what "Expanded Memory fully used" reports, and maps pages
-constantly while loading graphics. It doesn't ask for XMS. *Wing Commander II* is still to be
-traced.
+constantly while loading graphics. It doesn't ask for XMS. **Confirmed for *Wing Commander II***
+too: it allocates all 4 MB, and saves and restores the page map about 110 times a second as well
+([*Wing Commander II*](wing-commander-ii.md#expanded-memory-observed)).
 
 ### The `loadfix` question (observed, unexplained)
 
@@ -73,7 +74,8 @@ loaded below 64 KB, but `WC2.EXE` is not EXEPACK-compressed. So the reason here 
 **(to confirm)** what goes wrong without it. A focused emulator can simply load the game at the
 segment that works and record why. Confederation loads programs at about 40 KB, where a real DOS
 machine would, which is higher than either `LOADFIX` puts them (see
-[the DOS layer](the-dos-layer.md#where-the-program-goes)).
+[the DOS layer](the-dos-layer.md#where-the-program-goes)). *Wing Commander II* plays from its
+title to the cockpit at that address, so `loadfix` isn't needed here, whatever GOG added it for.
 
 ### Speed (observed)
 

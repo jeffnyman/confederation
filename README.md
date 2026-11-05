@@ -17,7 +17,7 @@ The CPU is done: a 386 in real mode that matches a real chip across 1.76 million
 instructions. DOS, the BIOS, expanded memory, the timer, the VGA, the keyboard and the joystick
 port are answered well enough that *Wing Commander* plays in a window, by keyboard or gamepad,
 with its music on an emulated AdLib or, given Roland's ROMs, an MT-32. *Wing Commander II* speaks
-through an emulated Sound Blaster. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+through an emulated Sound Blaster, and flies its first mission. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 ```
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"

@@ -43,14 +43,14 @@ public sealed partial class Machine
     }
 
     /// <summary>
-    /// The BIOS's IRQ 1 handler: reads the scan code, keeps the shift keys' state, and puts each
-    /// key that goes down into the buffer as its scan code and character, for INT 16h. Games that
-    /// read the keyboard themselves often still pass the code on to this handler.
+    /// The C# half of the BIOS's IRQ 1 handler, with the scan code the ROM half read from port
+    /// 60h in AL, once the keyboard intercept has passed it on: keeps the shift keys' state, and
+    /// puts each key that goes down into the buffer as its scan code and character, for INT 16h.
+    /// Games that read the keyboard themselves often still pass the code on to this handler.
     /// </summary>
     private void KeyboardInterrupt()
     {
-        byte code = In(0x60);
-        _pic.EndOfInterrupt();
+        byte code = (byte)Cpu.Eax;
         if (code == 0xE0)
         {
             _extendedPrefix = true;
@@ -138,7 +138,7 @@ public sealed partial class Machine
     }
 
     /// <summary>The next key in the BIOS buffer, taken from it or only looked at; null when it's empty.</summary>
-    private ushort? FromBuffer(bool take)
+    internal ushort? FromBuffer(bool take)
     {
         ushort head = ReadWord(0x40, 0x1A);
         if (head == ReadWord(0x40, 0x1C))

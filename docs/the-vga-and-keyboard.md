@@ -106,11 +106,21 @@ There are two ways a program reads keys, and the machine supports both:
 
 1. **Through the BIOS.** The BIOS's IRQ 1 handler reads port 60h, tracks the shift keys, turns
    each key into a scan code and a character, and puts it in a 16-key ring buffer in the BIOS
-   data area. `INT 16h` takes keys from that buffer. Confederation's BIOS handler is written in C#
-   (`Machine.Keyboard.cs`), and the buffer is the real one in emulated memory.
+   data area. `INT 16h` takes keys from that buffer, and DOS's keyboard functions read through
+   it. Confederation's BIOS handler is a few bytes of real code in ROM, which reads the port and
+   offers the key to the intercept (below), and C# (`Machine.Keyboard.cs`) for the rest. The
+   buffer is the real one in emulated memory.
 2. **Directly.** Games install their own IRQ 1 handler and read port 60h themselves, for the
    up-and-down state of every key: a flight game has to know that the stick key is *held*.
    *Wing Commander* does this. Its handler can still chain to the BIOS's.
+3. **Through the keyboard intercept.** On an AT, the BIOS's IRQ 1 handler first calls `INT 15h`
+   function 4Fh with each scan code. A program hooking it sees every key, up and down, and can
+   keep one from the BIOS (by returning with carry clear) or let it through, so it gets the
+   held-key state *and* leaves the BIOS buffering keys for DOS. A program asks whether the BIOS
+   does this with `INT 15h` function C0h, which points at a table of the machine's features.
+   *Wing Commander II* asks, and uses the intercept if it's there; if not, it takes IRQ 1 over
+   completely, as in 2, and then its own name prompts, which read keys through DOS, never get any
+   ([how that was found](wing-commander-ii.md#the-keys-that-never-arrived)).
 
 The controller passes on one byte at a time: the next waits until the program has read port 60h,
 as the real keyboard waits for the controller. The 8042 also holds the **A20 gate**, the line that

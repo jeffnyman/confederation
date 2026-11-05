@@ -108,6 +108,91 @@ public sealed class DosTests : IDisposable
         Assert.Equal('A', machine.ExitCode);
     }
 
+    [Fact]
+    public void Dos_reads_a_key_through_the_bios_and_an_arrow_as_two()
+    {
+        // mov ah, 8; int 21h; mov ah, 4Ch; int 21h: the key's character is the exit code
+        var machine = Start([0xB4, 0x08, 0xCD, 0x21, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            m.PressKey(0x30);
+            m.ReleaseKey(0x30);
+        });
+        Assert.Equal('b', machine.ExitCode);
+
+        // the Up arrow of the AT's own block comes as a zero, then its scan code: mov ah, 7;
+        // int 21h; mov bl, al; mov ah, 7; int 21h; or al, bl; mov ah, 4Ch; int 21h
+        machine = Start([0xB4, 0x07, 0xCD, 0x21, 0x88, 0xC3, 0xB4, 0x07, 0xCD, 0x21, 0x08, 0xD8, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            m.PressKey(0x48, extended: true);
+            m.ReleaseKey(0x48, extended: true);
+        });
+        Assert.Equal(0x48, machine.ExitCode);
+    }
+
+    [Theory]
+    [InlineData(false, 0x00)]
+    [InlineData(true, 0xFF)]
+    public void Dos_says_whether_a_key_is_waiting(bool press, int answer)
+    {
+        // mov ah, 0Bh; int 21h; mov ah, 4Ch; int 21h
+        var machine = Start([0xB4, 0x0B, 0xCD, 0x21, 0xB4, 0x4C, 0xCD, 0x21], m =>
+        {
+            if (press)
+            {
+                m.PressKey(0x1E);
+                m.ReleaseKey(0x1E);
+            }
+        });
+
+        Assert.Equal(answer, machine.ExitCode);
+    }
+
+    [Fact]
+    public void The_bios_reports_the_keyboard_intercept_in_its_configuration()
+    {
+        // mov ah, 0C0h; int 15h; jc fail; mov al, es:[bx+5]; mov ah, 4Ch; int 21h;
+        // fail: mov ax, 4CFFh; int 21h. The first feature byte is the exit code.
+        var machine = Start([0xB4, 0xC0, 0xCD, 0x15, 0x72, 0x08, 0x26, 0x8A, 0x47, 0x05, 0xB4, 0x4C, 0xCD, 0x21, 0xB8, 0xFF, 0x4C, 0xCD, 0x21]);
+        Assert.Equal(0x70, machine.ExitCode);
+        Assert.NotEqual(0, machine.ExitCode & 0x10); // INT 09h calls INT 15h function 4Fh
+    }
+
+    [Fact]
+    public void A_program_on_the_keyboard_intercept_can_keep_a_key_from_the_bios()
+    {
+        // hook INT 15h with a handler that keeps A (scan code 1Eh) and passes the rest on, then
+        // read a key with INT 16h: A and then B are pressed, and B is the key the BIOS has
+        //
+        //   push cs; pop ds; mov dx, handler; mov ax, 2515h; int 21h
+        //   mov ah, 0; int 16h; mov ah, 4Ch; int 21h
+        // handler:
+        //   cmp ah, 4Fh; jne pass; cmp al, 1Eh; jne pass; clc; retf 2
+        // pass:
+        //   stc; retf 2
+        File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(
+        [
+            0x0E, 0x1F, 0xBA, 0x12, 0x00, 0xB8, 0x15, 0x25, 0xCD, 0x21,
+            0xB4, 0x00, 0xCD, 0x16, 0xB4, 0x4C, 0xCD, 0x21,
+            0x80, 0xFC, 0x4F, 0x75, 0x08, 0x3C, 0x1E, 0x75, 0x04, 0xF8, 0xCA, 0x02, 0x00,
+            0xF9, 0xCA, 0x02, 0x00,
+        ]));
+        var machine = new Machine(_game, _saves) { Log = _log.Add };
+        machine.Load("TEST.EXE");
+        machine.Run(10_000);
+        Assert.False(machine.Exited);
+
+        machine.PressKey(0x1E);
+        machine.ReleaseKey(0x1E);
+        machine.Run(10_000);
+        Assert.False(machine.Exited);
+
+        machine.PressKey(0x30);
+        machine.ReleaseKey(0x30);
+        machine.Run(10_000);
+        Assert.True(machine.Exited, string.Join('\n', _log));
+        Assert.Equal('b', machine.ExitCode);
+    }
+
     private Machine Start(byte[] code, Action<Machine>? before = null)
     {
         File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(code));
