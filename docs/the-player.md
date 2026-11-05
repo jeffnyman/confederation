@@ -95,6 +95,9 @@ A few details matter more than they look:
   can't read anyway: on a real PC, the BIOS handles it. With Ctrl, it keeps three more: Ctrl+F10
   frees the mouse, and Ctrl+F5 and Ctrl+F9 save and load the machine's state
   ([save states](save-states.md)). The game sees the Ctrl, but not the function key.
+- **With the cheats on, two keys stand in for others.** Alt+Q goes to the game as Alt+Del, and in
+  *Wing Commander II* Alt+W as Alt+Ins: the cheats' keys, moved beside Alt
+  ([cheats](cheats.md)). The game sees the Alt, and the extended Del or Ins in place of the letter.
 
 ## The joystick
 

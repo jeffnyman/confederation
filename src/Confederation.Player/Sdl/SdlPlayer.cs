@@ -27,6 +27,9 @@ internal sealed class PlayerOptions
 
     /// <summary>The file Ctrl+F5 saves the machine's state to and Ctrl+F9 loads it from; none, and they do nothing.</summary>
     public string? StatePath { get; init; }
+
+    /// <summary>Keys that, with Alt, go to the game as others: the cheats' keys, when they're on.</summary>
+    public StandInKeys StandIns { get; init; } = StandInKeys.None;
 }
 
 /// <summary>
@@ -240,6 +243,7 @@ internal sealed unsafe class SdlPlayer : IDisposable
                     }
 
                     _held.Clear();
+                    _options.StandIns.Clear();
                     ReleaseMouse();
                     break;
 
@@ -370,12 +374,17 @@ internal sealed unsafe class SdlPlayer : IDisposable
         if (key.down)
         {
             // a key held down repeats its make code, as the PC's keyboard does by itself
+            (code, extended) = _options.StandIns.Down(code, extended, (key.mod & SDL_Keymod.SDL_KMOD_ALT) != 0);
             _held.Add((code, extended));
             _machine.PressKey(code, extended);
         }
-        else if (_held.Remove((code, extended)))
+        else
         {
-            _machine.ReleaseKey(code, extended);
+            (code, extended) = _options.StandIns.Up(code, extended);
+            if (_held.Remove((code, extended)))
+            {
+                _machine.ReleaseKey(code, extended);
+            }
         }
     }
 

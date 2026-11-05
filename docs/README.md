@@ -46,7 +46,8 @@ games.
 11. [Save states](save-states.md): the whole machine saved by walking its objects rather than
     listing its fields, what's left out and why, open files, and the two things the tests found
     that a state loaded straight back would never have shown.
-12. [Cheats](cheats.md): the words Origin left in both games, and how two runs of a deterministic
-    machine, compared byte for byte, showed the games take them.
+12. [Cheats](cheats.md): the words Origin left in both games, how two runs of a deterministic
+    machine, compared byte for byte, showed the games take them, and how the flags led to the
+    games' own cheat keys in their code.
 
 More notes will follow as the work does, and each game as it comes up.

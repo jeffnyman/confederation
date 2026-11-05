@@ -158,6 +158,30 @@ public sealed class ProfileTests : IDisposable
     }
 
     [Fact]
+    public void Cheat_keys_beside_Alt_stand_in_for_the_games_own()
+    {
+        const byte q = 0x10, w = 0x11, del = 0x53, ins = 0x52;
+        var keys = new StandInKeys(Games.CheatKeys(Games.Wc2));
+
+        // without Alt, Q is Q
+        Assert.Equal((q, false), keys.Down(q, false, alt: false));
+        Assert.Equal((q, false), keys.Up(q, false));
+
+        // with it, the extended Del, while it's held and repeats, and when let go after Alt is
+        Assert.Equal((del, true), keys.Down(q, false, alt: true));
+        Assert.Equal((del, true), keys.Down(q, false, alt: false));
+        Assert.Equal((del, true), keys.Up(q, false));
+        Assert.Equal((q, false), keys.Up(q, false));
+        Assert.Equal((ins, true), keys.Down(w, false, alt: true));
+
+        // Wing Commander has no Alt+Ins, and with the cheats off nothing stands in
+        var wc1 = new StandInKeys(Games.CheatKeys(Games.Wc1));
+        Assert.Equal((del, true), wc1.Down(q, false, alt: true));
+        Assert.Equal((w, false), wc1.Down(w, false, alt: true));
+        Assert.Equal((q, false), StandInKeys.None.Down(q, false, alt: true));
+    }
+
+    [Fact]
     public void A_saved_state_is_resumed_from_its_file()
     {
         // one for each program, beside the saves rather than in them, where the game would see it

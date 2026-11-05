@@ -134,15 +134,33 @@ internal static class Games
     /// <summary>
     /// The words on the command line that turn on the cheats Origin left in both games, and in
     /// their mission disks: <c>Origin</c>, with a capital O, and <c>-k</c>. Each sets a flag in
-    /// the game's data (observed; see docs/cheats.md). The fans' guides say they make the
-    /// player's ship indestructible, and give keys in flight that destroy the target (Alt+Del)
-    /// and the enemy wing (Alt+Ins).
+    /// the game's data, and in flight the games then take Alt+Del, and in Wing Commander II
+    /// Alt+Ins, as cheats (observed; see docs/cheats.md).
     /// </summary>
     public const string CheatWords = "Origin -k";
+
+    // scan codes: Q and W, and the extended Del and Ins
+    private const byte Q = 0x10, W = 0x11, Del = 0x53, Ins = 0x52;
 
     /// <summary>The program's command line: the cheats' words, when they're on, before any given.</summary>
     public static string Arguments(bool cheats, string given)
         => !cheats ? given : given.Length == 0 ? CheatWords : $"{CheatWords} {given}";
+
+    /// <summary>
+    /// The cheats' keys, as keys beside Alt that stand in for them: Alt+Q for Alt+Del, which
+    /// destroys the target, and in Wing Commander II Alt+W for Alt+Ins, which destroys the enemy
+    /// fighters. Wing Commander has no Alt+Ins: its Ins is only a roll.
+    /// </summary>
+    public static IReadOnlyDictionary<byte, (byte Code, bool Extended)> CheatKeys(Series? series)
+        => series == Wc1 ? new Dictionary<byte, (byte, bool)> { [Q] = (Del, true) }
+            : series == Wc2 ? new Dictionary<byte, (byte, bool)> { [Q] = (Del, true), [W] = (Ins, true) }
+            : new Dictionary<byte, (byte, bool)>();
+
+    /// <summary>What the cheats' keys do, said when the game starts with them on.</summary>
+    public static string CheatHelp(Series? series)
+        => series == Wc1 ? "in flight, Alt+Q (or Alt+Del) destroys the target"
+            : series == Wc2 ? "in flight, Alt+Q (or Alt+Del) destroys the target, Alt+W (or Alt+Ins) the enemy fighters"
+            : "the games' own keys, Alt+Del and in Wing Commander II Alt+Ins";
 
     /// <summary>
     /// The player's own folder in the user's application data: the settings, the saves and the

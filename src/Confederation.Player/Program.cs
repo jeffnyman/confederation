@@ -329,7 +329,7 @@ internal static class Program
 
         if (cheats)
         {
-            Console.WriteLine($"confederation: cheats on ({Games.CheatWords}): in flight, Alt+Del destroys the target and Alt+Ins the enemy wing");
+            Console.WriteLine($"confederation: cheats on ({Games.CheatWords}): {Games.CheatHelp(game.Series)}");
         }
 
         bool running;
@@ -351,6 +351,7 @@ internal static class Program
                     Sound = sound,
                     Mouse = profile.Mouse ?? true,
                     StatePath = statePath,
+                    StandIns = cheats ? new StandInKeys(Games.CheatKeys(game.Series)) : StandInKeys.None,
                 };
 
                 using var player = new SdlPlayer(machine, options);
@@ -444,8 +445,9 @@ internal static class Program
               --no-mouse         no mouse: the games' pointers move by keyboard or joystick
               --no-sound         no sound
                                  (--joystick, --mouse, --sound: back on)
-              --cheats           the games' own cheats: the ship can't be destroyed, Alt+Del
-                                 destroys the target, Alt+Ins the enemy wing (--no-cheats: off)
+              --cheats           the games' own cheats: the ship can't be destroyed, Alt+Q (Alt+Del)
+                                 destroys the target, and in WC2 Alt+W (Alt+Ins) the enemy
+                                 fighters (--no-cheats: off)
               --music <device>   the music device, adlib or roland, written into the game's
                                  settings in the save folder, where it stays (GOG's is adlib)
               --mt32-roms <dir>  where the Roland MT-32's or CM-32L's ROMs are, for roland (by
