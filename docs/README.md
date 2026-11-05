@@ -33,6 +33,7 @@ games.
    keyboard's scan codes, the PC's odd analog joystick port and a gamepad on it, and testing a
    game by keyboard without a person at the keys.
 8. [The sound](the-sound.md): what the games ask for, the OPL FM synthesizer and the card around
-   it, making each sample just in time, and letting the sound device set the pace.
+   it, making each sample just in time, letting the sound device set the pace, and the Roland
+   MT-32 behind an MPU-401, with how the games' settings were worked out by trying them.
 
 More notes will follow as the work does: the rest of the sound, and each game as it comes up.

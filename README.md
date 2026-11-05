@@ -16,14 +16,15 @@ DOSBox is never wrapped or linked.
 The CPU is done: a 386 in real mode that matches a real chip across 1.76 million captured test
 instructions. DOS, the BIOS, expanded memory, the timer, the VGA, the keyboard and the joystick
 port are answered well enough that *Wing Commander* plays in a window, by keyboard or gamepad,
-with its music on an emulated AdLib. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+with its music on an emulated AdLib or, given Roland's ROMs, an MT-32. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 ```
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
 ```
 
 The game's folder is only read; saves go to a folder of their own. F11 is full screen, F12 full
-speed, Pause pauses, and `--help` lists the rest.
+speed, Pause pauses, and `--help` lists the rest. `--music roland --mt32-roms <folder>` plays the
+music on an emulated Roland MT-32 instead; its ROMs aren't included.
 
 | Game | Tier |
 |---|---|

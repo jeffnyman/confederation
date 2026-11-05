@@ -69,6 +69,41 @@ public sealed class GameStartTests : IDisposable
         Assert.True(rms > 300, $"the intro is nearly silent: {rms:F0}");
     }
 
+    [Fact]
+    public void Wing_Commander_plays_its_intro_on_a_roland()
+    {
+        if (TestData.Game("Wing Commander") is not { } folder || TestData.Mt32Roms() is not { } roms)
+        {
+            return;
+        }
+
+        // the installer's setting for a Roland, in the save folder where the player puts it
+        File.WriteAllText(Path.Combine(_saves, "WINGCMDR.CFG"), "v r z\r\n");
+        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        machine.UseMt32(roms);
+        machine.Load("WC.EXE");
+
+        // the driver greets the player on the module's display, and sends its own instruments,
+        // a SysEx message about every eighth of a second, which takes until about 10 s in; the
+        // music starts at about 16 s
+        var sound = new List<short>();
+        var buffer = new short[Machine.SampleRate * 2];
+        while (machine.Time.TotalSeconds < 24 && machine.Run(machine.InstructionsPerSecond / 10))
+        {
+            sound.AddRange(buffer.AsSpan(0, machine.ReadSamples(buffer)));
+        }
+
+        WriteWav(Path.Combine(AppContext.BaseDirectory, "screenshots", "wc-intro-mt32.wav"), sound);
+        Assert.Equal("Origin Sound System!", machine.Mt32Display);
+        Assert.Contains("mt32: \"Origin Sound System!\"", _log);
+
+        var before = sound.Take(2 * 10 * Machine.SampleRate).ToList();
+        var music = sound.Skip(2 * 17 * Machine.SampleRate).ToList();
+        Assert.All(before, sample => Assert.Equal(0, sample));
+        double rms = Math.Sqrt(music.Average(sample => (double)sample * sample));
+        Assert.True(rms > 100, $"the music is nearly silent: {rms:F0}");
+    }
+
     private static void WriteWav(string path, List<short> samples)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

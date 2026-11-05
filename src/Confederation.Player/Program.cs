@@ -44,6 +44,8 @@ internal static class Program
         string? saves = null;
         string? logPath = null;
         string? screenshot = null;
+        string? mt32Roms = null;
+        Music? music = null;
         double? seconds = null;
         int? cycles = null;
         int scale = 3;
@@ -103,6 +105,18 @@ internal static class Program
                 case "--no-sound":
                     sound = false;
                     break;
+                case "--music":
+                    string device = Next("--music", "adlib or roland");
+                    music = device.ToLowerInvariant() switch
+                    {
+                        "adlib" => Music.AdLib,
+                        "roland" or "mt32" or "mt-32" => Music.Roland,
+                        _ => throw new UsageException($"--music needs adlib or roland, not '{device}'"),
+                    };
+                    break;
+                case "--mt32-roms":
+                    mt32Roms = Next("--mt32-roms", "a folder");
+                    break;
                 case "--log":
                     logPath = Next("--log", "a file name");
                     break;
@@ -155,6 +169,29 @@ internal static class Program
             InstructionsPerSecond = (cycles ?? game.Cycles) * 1000,
             Log = log is null ? null : log.WriteLine,
         };
+        if (music is not null)
+        {
+            Games.SetMusic(game, saves, music.Value);
+        }
+
+        if (sound && Games.MusicOf(game, saves) == Music.Roland)
+        {
+            // the game will play its music to the MPU-401, so plug the Roland in
+            string roms = mt32Roms ?? Games.Mt32RomFolder();
+            if (Directory.Exists(roms))
+            {
+                Console.WriteLine($"confederation: music on a Roland, {machine.UseMt32(roms)}");
+            }
+            else if (music == Music.Roland || mt32Roms is not null)
+            {
+                throw new UsageException($"the Roland needs its ROMs, and there's no folder {roms}: give one with --mt32-roms");
+            }
+            else
+            {
+                Error($"the game is set for a Roland, but there are no MT-32 ROMs in {roms}, so there's no music (--music adlib sets it back)");
+            }
+        }
+
         machine.Load(game.Program, arguments);
         Console.WriteLine($"confederation: {game.Title}, {game.Program} at {machine.InstructionsPerSecond / 1000} cycles; saves in {saves}");
 
@@ -231,6 +268,11 @@ internal static class Program
               --square-pixels    square pixels, not the 4:3 picture a monitor showed
               --no-joystick      no joystick on the game port, even with a gamepad plugged in
               --no-sound         no sound
+              --music <device>   the music device, adlib or roland, written into the game's
+                                 settings in the save folder, where it stays (GOG's is adlib)
+              --mt32-roms <dir>  where the Roland MT-32's or CM-32L's ROMs are, for roland (by
+                                 default a folder mt32-roms beside the saves); they're Roland's,
+                                 and not included
               --log <file>       write every DOS, BIOS and EMS call, and unanswered port, to a file
               --seconds <n>      stop after n seconds of the game's time
               --screenshot <f>   save the picture as a PNG when stopping

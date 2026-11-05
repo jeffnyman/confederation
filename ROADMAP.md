@@ -20,8 +20,9 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
    playable, silently, by keyboard and stick; a mouse driver (`INT 33h`) is still to come
    ([docs/the-player.md](docs/the-player.md)).
 5. **Sound.** OPL2/OPL3 FM for AdLib and Sound Blaster music (*done*: *Wing Commander* plays its
-   score, [docs/the-sound.md](docs/the-sound.md)); the MPU-401 feeding an MT-32 (from Daventry's
-   port of Munt); the Sound Blaster DSP and DMA for digital sound.
+   score, [docs/the-sound.md](docs/the-sound.md)); the MPU-401 feeding an MT-32, from Daventry's
+   and GUE's port of Munt (*done*: both games play their Roland scores, chosen with
+   `--music roland`); the Sound Blaster DSP and DMA for digital sound.
 6. ***Wing Commander II.*** Speech, its EMS use, and the `loadfix` question
    ([docs/the-games.md](docs/the-games.md)). *Special Operations* 1 and 2.
 7. **Per-game profiles.** Save states, each game's speed, controls and sound device, and the

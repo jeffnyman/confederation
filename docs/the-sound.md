@@ -1,9 +1,9 @@
 # The sound
 
-*Wing Commander* now plays its score, through an emulated AdLib. This note covers the FM
-synthesizer the AdLib carried, how the machine finds out when to make each sample, and how the
-player keeps the sound and the picture together. The Roland MT-32 and the Sound Blaster's
-digitized sound come next, and will be added here.
+Both games play their scores, on an emulated AdLib or an emulated Roland MT-32. This note covers
+the FM synthesizer the AdLib carried, how the machine finds out when to make each sample, how the
+player keeps the sound and the picture together, and the MT-32 with the MPU-401 interface in front
+of it. The Sound Blaster's digitized sound comes next, and will be added here.
 
 The code is `src/Confederation.Core/Sound/` and `Machine.Sound.cs`, and `Sdl/SdlAudio.cs` in the player.
 
@@ -15,9 +15,10 @@ the service log:
 - **GOG's DOSBox settings** give both games a Sound Blaster 16 at port 220h (IRQ 5, DMA 1), its
   OPL3 FM chip (`oplmode=auto`), an MPU-401 MIDI interface, and sound at 44,100 Hz.
 - **Each game's config file** names its devices: *Wing Commander*'s `WINGCMDR.CFG` holds
-  `v a904 z`, and *Wing Commander II*'s `wc2.cfg` holds `v a904 c25 d1`. The meaning of the letters
-  isn't documented; `c25 d1` matches a Sound Blaster at 2**2**0h, IRQ **5**, DMA **1**, which is a
-  guess to confirm.
+  `v a904 z`, and *Wing Commander II*'s `wc2.cfg` holds `v a904 c25 d1`. The format isn't
+  documented. Trying letters showed that `a…` means the AdLib and `r` the Roland
+  ([below](#which-letter-is-the-roland)). `c25 d1` matches a Sound Blaster at 2**2**0h, IRQ **5**,
+  DMA **1**, which is a guess to confirm.
 - **The log**: *Wing Commander* writes the AdLib's ports 388h and 389h and nothing else that
   makes sound. *Wing Commander II* writes the AdLib too, and also resets a Sound Blaster's DSP at
   226h and reads 22Ah and 22Eh, which is how a program finds the card's digitized sound.
@@ -80,7 +81,7 @@ emulator has to decide when to work them out. There are three common answers:
 Confederation does the third (`Machine.UpdateSound`). Because the machine's time follows the
 instructions run, "now" is exact: each write lands on the sample it would on the real machine, and
 nothing is computed that isn't needed. Every sound device adds its samples into one stereo mix, so
-the MT-32 and the Sound Blaster will join the same way.
+the MT-32 joins the same way, and the Sound Blaster will.
 
 The machine keeps the last second of sound for the player to read, and drops what's older. A test
 or a headless run that never reads the sound doesn't fill memory.
@@ -103,16 +104,102 @@ sound is dropped.
 - **The game** (`GameStartTests.cs`): the intro test now records its sound to `wc-intro.wav`
   beside the screenshots, and checks there are 36 seconds of it, and that it's loud enough to be
   music.
+- **The MPU-401 and the MT-32** (`MidiTests.cs`): reset and UART mode are acknowledged, and a reset
+  in UART mode isn't; bytes are gathered into messages, with running status, a real-time byte in
+  the middle of a message, and System Exclusive; in intelligent mode, data goes nowhere except the
+  one message after a "want to send". With the ROMs at hand, the module shows a message sent to
+  its display and sounds a note.
+- **The game on the Roland**: the intro runs with `r` in its config, the display reads "Origin
+  Sound System!", the first ten seconds are silent while the instruments go across, and there's
+  music after seventeen. It's recorded to `wc-intro-mt32.wav`. Without the ROMs (in `_mt32-roms`
+  beside the project, or in `CONFEDERATION_MT32_ROMS`), these tests pass without checking.
 
 The recording's loudness, two seconds at a time, follows the intro: silence for the first six
 seconds, a quiet stretch with very few zero crossings (a low drone, or the driver setting up its
 voices; *to confirm by listening*), then the score building through the Origin FX logo to its
 loudest in the space battle, around 30 seconds in.
 
+## The Roland MT-32
+
+Roland's MT-32 (1987) was a synthesizer in a box, sold to musicians and then, in great numbers, to
+PC owners, because Sierra and then Origin wrote their scores for it. It makes sound by "linear
+arithmetic" (LA): short sampled attacks from a PCM ROM joined to synthesized sustains, through
+filters and a reverb. A computer reached it by a MIDI cable from an interface card, Roland's
+**MPU-401**, at ports 330h and 331h. The CM-32L (1989) is the same module made for computers, with
+more sound effects and no buttons, and the LAPC-I is a CM-32L on a card with the MPU-401 built in.
+Games of 1990 on were written with the CM-32L's sounds in mind, so it's what the machine emulates
+when its ROMs are there.
+
+### The synthesizer: Munt, ported for earlier projects
+
+The synthesis is **Munt** (libmt32emu 2.7.0), which rebuilds the module around its own ROMs: it
+doesn't run Roland's firmware, but reads the control ROM's patches, timbres and tables and the PCM
+ROM's samples, and implements the LA chip and the reverb from the hardware's behaviour. It was
+ported to C# for Daventry and then GUE, and is carried over unchanged (`Sound/Mt32/`). DOSBox uses
+the same library, so again it's what most people playing today hear.
+
+The ROMs are Roland's, and aren't part of the project. The player is pointed at a folder of them
+(`--mt32-roms`), and the files are recognized by their SHA-1, whatever they're called; halves
+dumped from separate chips are put back together. The CM-32L's are preferred, then the MT-32's,
+newest first-generation firmware (1.07) first.
+
+Munt makes its sound at the module's own 32,000 samples a second. `Mt32Module` converts that to
+the machine's 44,100 by straight-line interpolation between samples, and adds it to the mix like
+any other source. Messages are played the moment they arrive, which is exact for the same reason
+the FM chip's register writes are: the machine makes the sound up to the moment of each write to
+the MPU-401 before the write takes effect.
+
+### The MPU-401: the "intelligent" mode, barely
+
+The MPU-401 (1984) was a small computer of its own. In its **intelligent mode** it kept time and
+played up to eight tracks for the program; in **UART mode** it passes every byte straight to the
+cable. Most games use UART mode: reset the card (command FFh, acknowledged with FEh on the data
+port), command 3Fh, and from then on write MIDI bytes. The status port says when a byte may be
+written (bit 6 clear) and when one is waiting to be read (bit 7 clear).
+
+*Wing Commander*'s driver does neither, quite. It stays in intelligent mode, and before each
+message sends command **DFh**, "want to send a system message", then the message itself, a System
+Exclusive. The card passes that one message to the cable and goes back to waiting for commands.
+D0h-D7h, "want to send data", does the same for one channel message. That's the slice of the
+intelligent mode written here (`Mpu401.cs`, from DOSBox's `mpu401.cpp`): the "want to send"
+commands, reset and UART mode. Any other command is acknowledged and logged; none has come up.
+
+The bytes are gathered back into whole MIDI messages before they reach the synth: a status byte
+and its data, with *running status* (a message may leave out its status byte when it's the same
+as the last one's), System Exclusive messages from F0h to F7h, and real-time bytes (F8h and up)
+set aside wherever they fall.
+
+### Which letter is the Roland
+
+The games choose their music device from their config files, which their installers wrote, and
+GOG's say AdLib. *Wing Commander II*'s installer names the devices in its menus (`PC speaker`,
+`AdLib Music Card`, `Sound Blaster`, `Roland MT-32 or LAPC-1`), but nothing says which word each
+one writes, and the games' sound drivers (`TM.DRV`, `SUPERTM.DRV`, `STRAX.DRV`) are compressed,
+so their strings can't be read. So the letters were tried: each game was run for a few seconds
+with a dozen configs in turn, an MT-32 plugged in, and the MPU-401's log read.
+
+- In *Wing Commander*, `v r z` reaches the MPU-401; `m`, `l`, `s`, `c` and `b` don't. A config
+  holding both `a904` and `r` takes the later one.
+- In *Wing Commander II*, the same `r` works, and the game then loads `music.r00` instead of
+  `music.a00`.
+
+`--music roland` in the player writes the game's config into the save folder with `r` in place of
+the AdLib's word, as running the installer again would, and `--music adlib` puts the AdLib's word
+back. The game's own file isn't touched, and the choice stays with the saves.
+
+### What the games do with it
+
+Both drivers start the same way. They put **"Origin Sound System!"** on the module's display, then
+send the game's own instruments as System Exclusive messages: *Wing Commander* sends 76 of them,
+up to 256 bytes each, one about every eighth of a second. A real module needs the pause: a MIDI
+cable carries about 3,000 bytes a second, and the MT-32 takes time to digest each message (early
+firmware is known to overflow its buffer when sent data too fast). So the intro waits for them.
+*Wing Commander*'s first notes come at about 16 seconds, where the AdLib's come at about 6. That's
+the game's own pacing, not the emulator's (*to confirm against DOSBox*). *Wing Commander II* sends
+118 messages and starts its notes at about 14.5 seconds.
+
 ## Still to come
 
-- **The Roland MT-32**, through an MPU-401 at 330h, from Daventry's port of the Munt emulator. It
-  needs the MT-32's ROMs, which the user supplies.
 - **The Sound Blaster's DSP and DMA**, for digitized sound: *Wing Commander II*'s speech and
   effects. That needs the 8237 DMA controller, and the DSP's IRQ.
 - **The PC speaker**, the timer's channel 2 through port 61h, for whatever still beeps.

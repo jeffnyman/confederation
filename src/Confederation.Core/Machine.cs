@@ -264,6 +264,9 @@ public sealed partial class Machine : ICpuBus
                 // the FM synthesizer: the AdLib's ports, and the Sound Blaster's (its first four
                 // reach both banks, and 228h and 229h the first, as on an AdLib)
                 return _opl.Read(port, Seconds);
+            case 0x330:
+            case 0x331:
+                return _mpu.Read(port);
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
             case 0x3D5:
@@ -316,6 +319,11 @@ public sealed partial class Machine : ICpuBus
             case 0x229:
                 UpdateSound();
                 _opl.Write(port, value, Seconds);
+                break;
+            case 0x330:
+            case 0x331:
+                UpdateSound();
+                _mpu.Write(port, value);
                 break;
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:

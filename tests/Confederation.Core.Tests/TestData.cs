@@ -13,6 +13,21 @@ internal static class TestData
     /// <summary>A game's folder, in CONFEDERATION_GAMES or in a _wingc folder above the test binary; null when there is none.</summary>
     public static string? Game(string folder) => Search("CONFEDERATION_GAMES", ["_wingc"], folder);
 
+    /// <summary>
+    /// The Roland MT-32 and CM-32L ROMs: the folder in CONFEDERATION_MT32_ROMS, or a _mt32-roms
+    /// folder above the test binary; null when there is none.
+    /// </summary>
+    public static string? Mt32Roms()
+    {
+        var fromEnv = Environment.GetEnvironmentVariable("CONFEDERATION_MT32_ROMS");
+        if (!string.IsNullOrEmpty(fromEnv) && Directory.Exists(fromEnv))
+        {
+            return fromEnv;
+        }
+
+        return Search("CONFEDERATION_MT32_ROMS", ["."], "_mt32-roms");
+    }
+
     private static string? Search(string variable, string[] rootNames, string relativePath)
     {
         var fromEnv = Environment.GetEnvironmentVariable(variable);

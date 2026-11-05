@@ -1,4 +1,5 @@
 using Confederation.Core.Sound;
+using Confederation.Core.Sound.Mt32;
 
 namespace Confederation.Core;
 
@@ -15,6 +16,8 @@ public sealed partial class Machine
     private const int OutputCapacity = SampleRate * 2;
 
     private readonly Opl _opl = new(SampleRate);
+    private Mpu401 _mpu = null!;
+    private Mt32Module? _mt32;
     private readonly List<ISoundSource> _sources = [];
     private readonly short[] _output = new short[OutputCapacity];
     private int[] _mix = new int[1024];
@@ -42,7 +45,43 @@ public sealed partial class Machine
         return count;
     }
 
-    private void InstallSound() => _sources.Add(_opl);
+    /// <summary>
+    /// The MT-32 plugged into the MPU-401, as in "CM-32L/LAPC-I Control v1.02"; null when none is.
+    /// </summary>
+    public string? Mt32 => _mt32?.Description;
+
+    /// <summary>What the MT-32's display shows, or null without one.</summary>
+    public string? Mt32Display => _mt32?.Display;
+
+    /// <summary>
+    /// Plugs a Roland MT-32 into the MPU-401, made from the ROMs found in a folder: a CM-32L's if
+    /// they're there, as the games were written for it, otherwise an MT-32's. The files are
+    /// recognized by their contents, whatever they're called.
+    /// </summary>
+    /// <returns>The module emulated, as in "CM-32L/LAPC-I Control v1.02".</returns>
+    /// <exception cref="DirectoryNotFoundException">The folder isn't there.</exception>
+    /// <exception cref="InvalidDataException">No control ROM and PCM ROM that go together are in it.</exception>
+    public string UseMt32(string romFolder)
+    {
+        var roms = Mt32RomSet.FromDirectory(romFolder)
+            ?? throw new InvalidDataException($"no MT-32 or CM-32L control and PCM ROMs that go together are in {romFolder}");
+        if (_mt32 is not null)
+        {
+            _sources.Remove(_mt32);
+        }
+
+        UpdateSound();
+        _mt32 = new Mt32Module(roms, SampleRate, line => Log?.Invoke(line));
+        _sources.Add(_mt32);
+        _mpu.Output = _mt32;
+        return _mt32.Description;
+    }
+
+    private void InstallSound()
+    {
+        _sources.Add(_opl);
+        _mpu = new Mpu401(line => Log?.Invoke(line));
+    }
 
     /// <summary>The machine's time in seconds, as precisely as the instruction count gives it.</summary>
     private double Seconds => (double)_time / InstructionsPerSecond;
