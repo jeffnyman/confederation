@@ -10,6 +10,7 @@ worth copying into any project like this.
 src/Confederation.Core     the emulated machine: a library, with no user interface
 src/Confederation.Player   the program you run: a window, sound, input, and the per-game settings
 tests/Confederation.Core.Tests
+tests/Confederation.Player.Tests
 ```
 
 The **core** is the PC: CPU, memory, devices, the DOS layer. It takes input as method calls and
@@ -18,6 +19,10 @@ plays a sound.
 
 The **player** wraps the core in a real program, using SDL3 for the window, audio and input as
 Retrograde does.
+
+The player has tests of its own, for what it decides rather than what it shows: its settings, the
+games' short names, and the command line run end to end with a stand-in program in place of a
+game ([profiles and the menu](profiles-and-the-menu.md#checking-it)).
 
 Splitting the two makes the core *testable without a screen*. A test can load a game, run it for a
 number of emulated frames, feed it keystrokes, and compare the framebuffer against a known image,

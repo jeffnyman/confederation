@@ -13,6 +13,7 @@
     </ItemGroup>
   </Target>
   <ItemGroup>
+    <InternalsVisibleTo Include="Confederation.Player.Tests" />
     <ProjectReference Include="..\Confederation.Core\Confederation.Core.csproj" />
     <PackageReference Include="ppy.SDL3-CS" />
   </ItemGroup>

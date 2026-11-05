@@ -40,4 +40,8 @@ games.
    never arrived was followed through the game's own code to one BIOS call the machine didn't
    answer; its expanded memory, `loadfix`, and the *Special Operations*.
 
+10. [Profiles and the menu](profiles-and-the-menu.md): why a profile belongs to a game and its
+    mission disks together, one settings file that remembers where each game is and how it's
+    played, short names, and a menu drawn with SDL's own debug font.
+
 More notes will follow as the work does, and each game as it comes up.

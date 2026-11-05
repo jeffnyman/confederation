@@ -23,6 +23,11 @@ through an emulated Sound Blaster, and flies its first mission. [ROADMAP.md](ROA
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
 ```
 
+After that once, the game has a short name: `wc1`, `sm1` and `sm2` for *Wing Commander* and its
+*Secret Missions*, `wc2`, `so1` and `so2` for *Wing Commander II* and its *Special Operations*.
+With no game named, a menu lists them, and a game's folder dropped on its window sets it up.
+`--remember` keeps a run's options as the game's own, and `--list` shows what's set up.
+
 The game's folder is only read; saves go to a folder of their own. A click in the window gives
 the game the mouse (Ctrl+F10 takes it back), F11 is full screen, F12 full speed, Pause pauses, and
 `--help` lists the rest. `--music roland --mt32-roms <folder>` plays the

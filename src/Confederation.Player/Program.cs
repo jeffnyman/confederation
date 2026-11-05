@@ -36,25 +36,25 @@ internal static class Program
         }
     }
 
-    private static int Run(string[] args)
+    /// <summary>The command line, run: what <see cref="Main"/> does, without its error reporting.</summary>
+    internal static int Run(string[] args)
     {
-        string? gamePath = null;
+        string? gameName = null;
         string? program = null;
         string arguments = "";
         string? saves = null;
         string? logPath = null;
         string? screenshot = null;
         string? mt32Roms = null;
-        Music? music = null;
+        string settingsPath = Settings.DefaultPath;
         double? seconds = null;
-        int? cycles = null;
-        int scale = 3;
-        bool fullscreen = false;
-        bool squarePixels = false;
-        bool joystick = true;
-        bool mouse = true;
-        bool sound = true;
         bool headless = false;
+        bool list = false;
+        bool remember = false;
+        bool forget = false;
+
+        // the options a profile can keep, as given here: they win over the profile for this run
+        var given = new Profile();
 
         int i = 0;
 
@@ -82,6 +82,18 @@ internal static class Program
                 case "--version":
                     Console.WriteLine($"confederation {Version()}");
                     return Done;
+                case "--list":
+                    list = true;
+                    break;
+                case "--settings":
+                    settingsPath = Path.GetFullPath(Next("--settings", "a file name"));
+                    break;
+                case "--remember":
+                    remember = true;
+                    break;
+                case "--forget":
+                    forget = true;
+                    break;
                 case "--args":
                     arguments = i + 1 < args.Length ? args[++i] : throw new UsageException("--args needs the program's arguments");
                     break;
@@ -89,29 +101,35 @@ internal static class Program
                     saves = Next("--saves", "a folder");
                     break;
                 case "--cycles":
-                    cycles = Number("--cycles", "instructions a millisecond, as in 4000", 100, 1_000_000);
+                    given.Cycles = Number("--cycles", "instructions a millisecond, as in 4000", 100, 1_000_000);
                     break;
                 case "--scale":
-                    scale = Number("--scale", "a scale from 1 to 8", 1, 8);
+                    given.Scale = Number("--scale", "a scale from 1 to 8", 1, 8);
                     break;
                 case "--fullscreen":
-                    fullscreen = true;
+                    given.Fullscreen = true;
+                    break;
+                case "--windowed":
+                    given.Fullscreen = false;
                     break;
                 case "--square-pixels":
-                    squarePixels = true;
+                    given.SquarePixels = true;
                     break;
-                case "--no-joystick":
-                    joystick = false;
+                case "--no-square-pixels":
+                    given.SquarePixels = false;
                     break;
-                case "--no-mouse":
-                    mouse = false;
+                case "--joystick" or "--no-joystick":
+                    given.Joystick = args[i] == "--joystick";
                     break;
-                case "--no-sound":
-                    sound = false;
+                case "--mouse" or "--no-mouse":
+                    given.Mouse = args[i] == "--mouse";
+                    break;
+                case "--sound" or "--no-sound":
+                    given.Sound = args[i] == "--sound";
                     break;
                 case "--music":
                     string device = Next("--music", "adlib or roland");
-                    music = device.ToLowerInvariant() switch
+                    given.Music = device.ToLowerInvariant() switch
                     {
                         "adlib" => Music.AdLib,
                         "roland" or "mt32" or "mt-32" => Music.Roland,
@@ -119,7 +137,7 @@ internal static class Program
                     };
                     break;
                 case "--mt32-roms":
-                    mt32Roms = Next("--mt32-roms", "a folder");
+                    mt32Roms = Path.GetFullPath(Next("--mt32-roms", "a folder"));
                     break;
                 case "--log":
                     logPath = Next("--log", "a file name");
@@ -139,9 +157,9 @@ internal static class Program
                         throw new UsageException($"unknown option {args[i]}");
                     }
 
-                    if (gamePath is null)
+                    if (gameName is null)
                     {
-                        gamePath = args[i];
+                        gameName = args[i];
                     }
                     else
                     {
@@ -152,10 +170,24 @@ internal static class Program
             }
         }
 
-        if (gamePath is null)
+        var settings = Settings.Load(settingsPath);
+        bool changed = false;
+        if (mt32Roms is not null && mt32Roms != settings.Mt32Roms)
         {
-            PrintHelp();
-            return BadCommandLine;
+            // the ROMs' folder is remembered once given, as the games' folders are
+            settings.Mt32Roms = mt32Roms;
+            changed = true;
+        }
+
+        if (list)
+        {
+            if (changed)
+            {
+                settings.Save();
+            }
+
+            List(settings);
+            return Done;
         }
 
         if (headless && seconds is null)
@@ -163,31 +195,97 @@ internal static class Program
             throw new UsageException("--headless needs --seconds, or it would never end");
         }
 
-        var game = Games.Find(gamePath, program);
+        Game game;
+        if (gameName is null)
+        {
+            if (headless)
+            {
+                throw new UsageException("--headless needs a game");
+            }
+
+            // no game named: the menu, which can also set games up
+            if (Sdl.SdlMenu.Choose(settings) is not { } chosen)
+            {
+                return Done;
+            }
+
+            game = chosen;
+        }
+        else if (Games.Named(gameName) is { } known)
+        {
+            game = Games.In(
+                settings.FolderOf(known.Series)
+                    ?? throw new FileNotFoundException($"{known.Series.Title} isn't set up yet: run confederation \"<its folder>\" once, or drop the folder on the menu's window"),
+                known);
+            if (program is not null)
+            {
+                throw new UsageException($"{gameName} names its program already");
+            }
+        }
+        else
+        {
+            game = Games.Find(gameName, program);
+            if (game.Series is { } found)
+            {
+                // a folder given once is remembered, so the game can be named by its short name
+                changed |= settings.Remember(found, game.Folder);
+            }
+        }
+
+        // the series' profile, with what was given here over it
+        var profile = new Profile();
+        if (game.Series is { } series)
+        {
+            if (forget && settings.Profiles.Remove(series.Key))
+            {
+                changed = true;
+            }
+
+            profile.Take(settings.ProfileOf(series));
+            if (remember && !given.IsEmpty)
+            {
+                var kept = settings.ProfileOf(series);
+                kept.Take(given);
+                settings.Profiles[series.Key] = kept;
+                changed = true;
+            }
+        }
+        else if (remember || forget)
+        {
+            throw new UsageException($"the player keeps no profile for {game.Program}, a program it doesn't know");
+        }
+
+        profile.Take(given);
+        if (changed)
+        {
+            settings.Save();
+        }
+
+        bool sound = profile.Sound ?? true;
         saves ??= Games.SaveFolder(game);
         Directory.CreateDirectory(saves);
 
         using var log = logPath is null ? null : new StreamWriter(logPath);
         var machine = new Machine(game.Folder, saves)
         {
-            InstructionsPerSecond = (cycles ?? game.Cycles) * 1000,
+            InstructionsPerSecond = (profile.Cycles ?? game.Cycles) * 1000,
             Log = log is null ? null : log.WriteLine,
-            Mouse = mouse && !headless,
+            Mouse = (profile.Mouse ?? true) && !headless,
         };
-        if (music is not null)
+        if (profile.Music is { } music)
         {
-            Games.SetMusic(game, saves, music.Value);
+            Games.SetMusic(game, saves, music);
         }
 
         if (sound && Games.MusicOf(game, saves) == Music.Roland)
         {
             // the game will play its music to the MPU-401, so plug the Roland in
-            string roms = mt32Roms ?? Games.Mt32RomFolder();
+            string roms = settings.Mt32Roms ?? Games.Mt32RomFolder();
             if (Directory.Exists(roms))
             {
                 Console.WriteLine($"confederation: music on a Roland, {machine.UseMt32(roms)}");
             }
-            else if (music == Music.Roland || mt32Roms is not null)
+            else if (given.Music == Music.Roland)
             {
                 throw new UsageException($"the Roland needs its ROMs, and there's no folder {roms}: give one with --mt32-roms");
             }
@@ -199,6 +297,10 @@ internal static class Program
 
         machine.Load(game.Program, arguments);
         Console.WriteLine($"confederation: {game.Title}, {game.Program} at {machine.InstructionsPerSecond / 1000} cycles; saves in {saves}");
+        if (gameName is not null && Games.Named(gameName) is { Note: { } note } named)
+        {
+            Console.WriteLine($"confederation: {named.Title} is {note}");
+        }
 
         bool running;
         try
@@ -212,12 +314,12 @@ internal static class Program
                 var options = new PlayerOptions
                 {
                     Title = $"Confederation - {game.Title}",
-                    Scale = scale,
-                    Fullscreen = fullscreen,
-                    SquarePixels = squarePixels,
-                    Joystick = joystick,
+                    Scale = profile.Scale ?? 3,
+                    Fullscreen = profile.Fullscreen ?? false,
+                    SquarePixels = profile.SquarePixels ?? false,
+                    Joystick = profile.Joystick ?? true,
                     Sound = sound,
-                    Mouse = mouse,
+                    Mouse = profile.Mouse ?? true,
                 };
 
                 using var player = new SdlPlayer(machine, options);
@@ -252,34 +354,70 @@ internal static class Program
         return Done;
     }
 
+    /// <summary>What's set up: each game, where it is, and how its series is played.</summary>
+    private static void List(Settings settings)
+    {
+        Console.WriteLine($"settings: {settings.Path}");
+        Console.WriteLine($"MT-32 ROMs: {settings.Mt32Roms ?? $"{Games.Mt32RomFolder()} (the default)"}");
+        foreach (var series in Games.AllSeries)
+        {
+            Console.WriteLine();
+            string? folder = settings.FolderOf(series);
+            Console.WriteLine($"{series.Title}: {folder ?? "not set up (run confederation \"<its folder>\" once)"}");
+            if (folder is null)
+            {
+                continue;
+            }
+
+            Console.WriteLine($"  played with {settings.ProfileOf(series)}");
+            foreach (var game in Games.Known.Where(game => game.Series == series))
+            {
+                bool there = File.Exists(Path.Combine(folder, game.Program));
+                string note = !there ? $"  (no {game.Program})" : game.Note is { } n ? $"  ({n})" : "";
+                Console.WriteLine($"  {game.Name}  {game.Title}{note}");
+            }
+        }
+    }
+
     private static void PrintHelp()
     {
         Console.WriteLine($"""
             confederation {Version()}: plays the Wing Commander games, and only that.
 
-            usage: confederation <game> [program] [options]
+            usage: confederation [game] [program] [options]
 
-              <game>             the game's folder, or its program; in a folder, the main game is
-                                 found (WC.EXE or WC2.EXE)
+              [game]             a game's short name: wc1, sm1 or sm2 (Wing Commander and its
+                                 Secret Missions), wc2, so1 or so2 (Wing Commander II and its
+                                 Special Operations); or its folder, or its program. A folder
+                                 given once is remembered, so the short names find it after.
+                                 With no game, a menu in a window lists them.
               [program]          another program in the folder, such as SM2.EXE or SO1.EXE
 
             options:
+              --list             what's set up: each game's folder, and how it's played
+              --remember         keep this run's options below as the game's own, for the game
+                                 and its mission disks
+              --forget           go back to the defaults for the game and its mission disks
+              --settings <file>  the settings file (by default confederation.json in the user's
+                                 application data, beside the saves)
               --args "<text>"    the program's command line arguments
               --saves <folder>   where the game's writes go (by default a folder of its own in the
                                  user's application data); the game's folder is never written
               --cycles <n>       instructions a millisecond, as DOSBox counts cycles: the game's own
                                  by default, 4000 for Wing Commander and 8000 for Wing Commander II
               --scale <n>        the window's first size, n times the picture (3)
-              --fullscreen       start in full screen
+              --fullscreen       start in full screen (--windowed: in a window)
               --square-pixels    square pixels, not the 4:3 picture a monitor showed
+                                 (--no-square-pixels: 4:3)
               --no-joystick      no joystick on the game port, even with a gamepad plugged in
               --no-mouse         no mouse: the games' pointers move by keyboard or joystick
               --no-sound         no sound
+                                 (--joystick, --mouse, --sound: back on)
               --music <device>   the music device, adlib or roland, written into the game's
                                  settings in the save folder, where it stays (GOG's is adlib)
               --mt32-roms <dir>  where the Roland MT-32's or CM-32L's ROMs are, for roland (by
-                                 default a folder mt32-roms beside the saves); they're Roland's,
-                                 and not included
+                                 default a folder mt32-roms beside the saves), remembered once
+                                 given; they're Roland's, and not included
               --log <file>       write every DOS, BIOS and EMS call, and unanswered port, to a file
               --seconds <n>      stop after n seconds of the game's time
               --screenshot <f>   save the picture as a PNG when stopping

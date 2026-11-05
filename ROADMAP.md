@@ -29,15 +29,18 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
    use is traced, `loadfix` isn't needed, and *Special Operations* 1 and 2 reach their menus
    ([docs/wing-commander-ii.md](docs/wing-commander-ii.md)). Still to check: a mission played
    through.
-7. **Per-game profiles.** Save states, each game's speed, controls and sound device, and the
-   *Secret Missions* and *Special Operations* chosen from one place.
+7. **Per-game profiles.** *Done*: each series' speed, controls and sound device kept in one
+   settings file, the games known by short names (`wc1`, `sm2`, `so1`...), and a menu in a window
+   when none is named ([docs/profiles-and-the-menu.md](docs/profiles-and-the-menu.md)).
+8. **Save states.** The whole machine saved and restored: the processor, memory, every device,
+   DOS's open files, and the synthesizers' own state.
 
 ## *Wing Commander III*, the first stretch
 
-8. **Protected mode.** The 386's 32-bit protected mode with paging, and the DPMI services its DOS
+9. **Protected mode.** The 386's 32-bit protected mode with paging, and the DPMI services its DOS
    extender expects.
-9. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
-10. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
+10. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
+11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
 ## Later
 
