@@ -92,7 +92,9 @@ A few details matter more than they look:
   every key it pressed.
 - **The player keeps three keys.** F11 (full screen), F12 (full speed) and Pause. F11 and F12
   arrived on keyboards after these games' controls were designed, and Pause is the one key a game
-  can't read anyway: on a real PC, the BIOS handles it.
+  can't read anyway: on a real PC, the BIOS handles it. With Ctrl, it keeps three more: Ctrl+F10
+  frees the mouse, and Ctrl+F5 and Ctrl+F9 save and load the machine's state
+  ([save states](save-states.md)). The game sees the Ctrl, but not the function key.
 
 ## The joystick
 

@@ -46,6 +46,8 @@ internal static class Program
         string? logPath = null;
         string? screenshot = null;
         string? mt32Roms = null;
+        string? statePath = null;
+        bool resume = false;
         string settingsPath = Settings.DefaultPath;
         double? seconds = null;
         bool headless = false;
@@ -138,6 +140,12 @@ internal static class Program
                     break;
                 case "--mt32-roms":
                     mt32Roms = Path.GetFullPath(Next("--mt32-roms", "a folder"));
+                    break;
+                case "--state":
+                    statePath = Path.GetFullPath(Next("--state", "a file name"));
+                    break;
+                case "--resume":
+                    resume = true;
                     break;
                 case "--log":
                     logPath = Next("--log", "a file name");
@@ -296,6 +304,19 @@ internal static class Program
         }
 
         machine.Load(game.Program, arguments);
+        statePath ??= Games.StateFile(game);
+        if (resume)
+        {
+            // on from where Ctrl+F5 last saved, the machine as it was then
+            if (!File.Exists(statePath))
+            {
+                throw new FileNotFoundException($"no state saved at {statePath}: Ctrl+F5 saves one while playing");
+            }
+
+            using var state = File.OpenRead(statePath);
+            machine.LoadState(state);
+            Console.WriteLine($"confederation: on from the state saved {File.GetLastWriteTime(statePath):g}");
+        }
         Console.WriteLine($"confederation: {game.Title}, {game.Program} at {machine.InstructionsPerSecond / 1000} cycles; saves in {saves}");
         if (gameName is not null && Games.Named(gameName) is { Note: { } note } named)
         {
@@ -320,6 +341,7 @@ internal static class Program
                     Joystick = profile.Joystick ?? true,
                     Sound = sound,
                     Mouse = profile.Mouse ?? true,
+                    StatePath = statePath,
                 };
 
                 using var player = new SdlPlayer(machine, options);
@@ -418,6 +440,10 @@ internal static class Program
               --mt32-roms <dir>  where the Roland MT-32's or CM-32L's ROMs are, for roland (by
                                  default a folder mt32-roms beside the saves), remembered once
                                  given; they're Roland's, and not included
+              --resume           start from the state Ctrl+F5 last saved
+              --state <file>     the file Ctrl+F5 saves the state to, Ctrl+F9 and --resume load
+                                 it from (by default one for each program, in a folder states
+                                 beside the saves)
               --log <file>       write every DOS, BIOS and EMS call, and unanswered port, to a file
               --seconds <n>      stop after n seconds of the game's time
               --screenshot <f>   save the picture as a PNG when stopping
@@ -429,6 +455,7 @@ internal static class Program
               four buttons (plug it in before starting: the games look for a joystick as they start)
               the mouse is the PC's once a click in the window captures it; Ctrl+F10 frees it
               F11 full screen, Shift+F11 pixel shape, F12 full speed on and off, Pause pauses
+              Ctrl+F5 saves the whole machine's state, Ctrl+F9 loads it back
             """);
     }
 

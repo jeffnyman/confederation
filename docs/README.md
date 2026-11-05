@@ -43,5 +43,8 @@ games.
 10. [Profiles and the menu](profiles-and-the-menu.md): why a profile belongs to a game and its
     mission disks together, one settings file that remembers where each game is and how it's
     played, short names, and a menu drawn with SDL's own debug font.
+11. [Save states](save-states.md): the whole machine saved by walking its objects rather than
+    listing its fields, what's left out and why, open files, and the two things the tests found
+    that a state loaded straight back would never have shown.
 
 More notes will follow as the work does, and each game as it comes up.

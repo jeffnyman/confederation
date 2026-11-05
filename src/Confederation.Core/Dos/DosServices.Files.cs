@@ -43,6 +43,18 @@ internal sealed partial class DosServices
         public static OpenFile Device(string name) => new() { Name = name };
     }
 
+    /// <summary>
+    /// Closes every file the program has open, without telling it: before a saved state is
+    /// loaded over the machine, which opens the state's own files again.
+    /// </summary>
+    public void CloseFiles()
+    {
+        foreach (var file in _files.Values)
+        {
+            file.Stream?.Dispose();
+        }
+    }
+
     private void PrepareToWrite(OpenFile file)
     {
         if (file.Copied || file.Parts is null || file.Stream is not { } stream)

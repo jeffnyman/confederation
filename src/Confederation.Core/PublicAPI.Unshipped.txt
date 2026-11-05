@@ -96,3 +96,6 @@ Confederation.Core.Machine.Mouse.get -> bool
 Confederation.Core.Machine.Mouse.set -> void
 Confederation.Core.Machine.MoveMouse(int dx, int dy) -> void
 Confederation.Core.Machine.SetMouseButton(int button, bool down) -> void
+Confederation.Core.Machine.ReleaseKeys() -> void
+Confederation.Core.Machine.SaveState(System.IO.Stream! stream) -> void
+Confederation.Core.Machine.LoadState(System.IO.Stream! stream) -> void

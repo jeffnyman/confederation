@@ -24,6 +24,9 @@ internal sealed class PlayerOptions
 
     /// <summary>Whether the host's mouse is the machine's mouse, once a click in the window captures it.</summary>
     public bool Mouse { get; init; } = true;
+
+    /// <summary>The file Ctrl+F5 saves the machine's state to and Ctrl+F9 loads it from; none, and they do nothing.</summary>
+    public string? StatePath { get; init; }
 }
 
 /// <summary>
@@ -50,6 +53,9 @@ internal sealed unsafe class SdlPlayer : IDisposable
     // at full speed, frames run between pictures for this long, in seconds of real time
     private const double WarpSlice = 1 / 60.0;
 
+    // how long a message, such as "saved", shows in the title bar, in seconds
+    private const double MessageSeconds = 2;
+
     // sound queued ahead of the device, in samples: 60 ms, about four frames, enough to ride out a late frame
     private const int SoundAhead = Machine.SampleRate * 2 * 60 / 1000;
 
@@ -71,6 +77,8 @@ internal sealed unsafe class SdlPlayer : IDisposable
     private bool _quit;
     private bool _paused;
     private bool _warp;
+    private string? _message;
+    private long _messageUntil;
     private long _frames;
     private long _instructions;
 
@@ -287,6 +295,12 @@ internal sealed unsafe class SdlPlayer : IDisposable
                     break;
             }
         }
+
+        if (_message is not null && Stopwatch.GetTimestamp() > _messageUntil)
+        {
+            _message = null;
+            ShowStatus();
+        }
     }
 
     private void Key(SDL_KeyboardEvent key)
@@ -324,6 +338,20 @@ internal sealed unsafe class SdlPlayer : IDisposable
                 }
 
                 return;
+            case SDL_Scancode.SDL_SCANCODE_F5 when (key.mod & SDL_Keymod.SDL_KMOD_CTRL) != 0:
+                if (key.down && !key.repeat)
+                {
+                    SaveState();
+                }
+
+                return;
+            case SDL_Scancode.SDL_SCANCODE_F9 when (key.mod & SDL_Keymod.SDL_KMOD_CTRL) != 0:
+                if (key.down && !key.repeat)
+                {
+                    LoadState();
+                }
+
+                return;
             case SDL_Scancode.SDL_SCANCODE_PAUSE:
                 if (key.down && !key.repeat)
                 {
@@ -352,7 +380,91 @@ internal sealed unsafe class SdlPlayer : IDisposable
     }
 
     private void ShowStatus()
-        => _window.ShowStatus(_paused ? "paused" : _warp ? "full speed" : _window.MouseCaptured ? "Ctrl+F10 frees the mouse" : null);
+        => _window.ShowStatus(_message ?? (_paused ? "paused" : _warp ? "full speed" : _window.MouseCaptured ? "Ctrl+F10 frees the mouse" : null));
+
+    /// <summary>Says what the player just did, in the title bar, for a couple of seconds.</summary>
+    private void Message(string message)
+    {
+        _message = message;
+        _messageUntil = Stopwatch.GetTimestamp() + (long)(MessageSeconds * Stopwatch.Frequency);
+        ShowStatus();
+    }
+
+    /// <summary>Saves the whole machine to the state file: Ctrl+F5.</summary>
+    private void SaveState()
+    {
+        if (_options.StatePath is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            // written aside and then moved, so a failed save leaves the last one whole
+            string temporary = path + ".new";
+            using (var file = File.Create(temporary))
+            {
+                _machine.SaveState(file);
+            }
+
+            File.Move(temporary, path, overwrite: true);
+            Message("state saved");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Message("state not saved");
+            Console.Error.WriteLine($"confederation: could not save the state: {ex.Message}");
+        }
+    }
+
+    /// <summary>Puts the machine back as the state file has it: Ctrl+F9.</summary>
+    private void LoadState()
+    {
+        if (_options.StatePath is not { } path)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            Message("no state saved");
+            return;
+        }
+
+        try
+        {
+            using (var file = File.OpenRead(path))
+            {
+                _machine.LoadState(file);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            Message("state not loaded");
+            Console.Error.WriteLine($"confederation: could not load the state: {ex.Message}");
+            return;
+        }
+
+        // the keys held when it was saved are let go, and the ones held now (Ctrl, at least)
+        // pressed, so the game's idea of the keyboard is the keyboard's
+        _machine.ReleaseKeys();
+        foreach (var (code, extended) in _held)
+        {
+            _machine.PressKey(code, extended);
+        }
+
+        // the mouse's buttons as they are now, and the sound from the state's moment on
+        _machine.SetMouseButton(0, false);
+        _machine.SetMouseButton(1, false);
+        _audio?.Clear();
+        while (_machine.ReadSamples(_samples) > 0)
+        {
+        }
+
+        Message("state loaded");
+    }
 
     /// <summary>
     /// A mouse button. While the mouse is free, a click in the window captures it for the game

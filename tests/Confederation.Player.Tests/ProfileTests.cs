@@ -142,6 +142,31 @@ public sealed class ProfileTests : IDisposable
     }
 
     [Fact]
+    public void A_saved_state_is_resumed_from_its_file()
+    {
+        // one for each program, beside the saves rather than in them, where the game would see it
+        var game = Games.Find(Wc1, null);
+        Assert.Equal(Path.Combine(Games.Home, "states", "Wing Commander", "WC.state"), Games.StateFile(game));
+
+        string state = Path.Combine(_root, "wc.state");
+        var ex = Assert.Throws<FileNotFoundException>(() => Run(Wc1, "--resume", "--state", state));
+        Assert.Contains("no state saved", ex.Message);
+
+        // a state of the program as loaded, before its first instruction
+        var machine = new Core.Machine(Wc1, Saves);
+        machine.Load("WC.EXE");
+        using (var file = File.Create(state))
+        {
+            machine.SaveState(file);
+        }
+
+        Assert.Equal(0, Run("wc1", "--resume", "--state", state));
+
+        File.WriteAllText(state, "not a state");
+        Assert.Throws<InvalidDataException>(() => Run("wc1", "--resume", "--state", state));
+    }
+
+    [Fact]
     public void The_menu_lists_the_games_and_what_is_set_up()
     {
         var settings = Settings.Load(SettingsPath);

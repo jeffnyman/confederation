@@ -195,6 +195,12 @@ internal sealed class Synth
 
     public PCMWaveEntry[] PcmWaves { get; private set; } = [];
 
+    /// <summary>
+    /// What the synth has from its ROMs and the one who made it rather than from playing: a
+    /// saved state refers to these, and the machine it's loaded into has its own.
+    /// </summary>
+    internal object[] Fixed => [ControlROMData, PcmROMData, PcmWaves, ControlROMMap, ControlROMFeatures, ReportHandler];
+
     public uint PartialCount { get; private set; } = DefaultMaxPartials;
 
     public PartialManager PartialManager { get; private set; } = null!;
@@ -230,12 +236,19 @@ internal sealed class Synth
 
     public bool DisplayOldMT32Compatible { get; set; }
 
-    /// <summary>
-    /// Where the TVP's small timer jitter comes from; Munt calls rand(). Seeded so that runs repeat.
-    /// </summary>
-    public Random Random { get; set; } = new(1);
+    // the state of the TVP's small timer jitter, which Munt takes from rand()
+    private uint _randomSeed = 1;
 
-    public int Rand() => Random.Next();
+    /// <summary>
+    /// The TVP's small timer jitter; Munt calls the C library's rand(). This is the C standard's
+    /// own example of rand(), seeded so that runs repeat, and kept as a number of the synth's
+    /// own so that a saved state carries it (as System.Random's hidden state couldn't be).
+    /// </summary>
+    public int Rand()
+    {
+        _randomSeed = (_randomSeed * 1103515245) + 12345;
+        return (int)((_randomSeed >> 16) & 0x7FFF);
+    }
 
     public bool IsReverbEnabled => _reverbModel is not null;
 

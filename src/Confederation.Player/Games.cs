@@ -151,6 +151,14 @@ internal static class Games
         return Path.Combine(Home, "saves", name);
     }
 
+    /// <summary>
+    /// Where a game's saved state goes unless told otherwise: a file for each program, in a
+    /// folder named as its save folder is, beside the saves. Not in the save folder itself, which
+    /// is the game's drive C:, where the game would see it.
+    /// </summary>
+    public static string StateFile(Game game)
+        => Path.Combine(Home, "states", Path.GetFileName(SaveFolder(game)), Path.ChangeExtension(game.Program, ".state"));
+
     /// <summary>Where the MT-32's ROMs are looked for unless told otherwise: a folder beside the saves.</summary>
     public static string Mt32RomFolder() => Path.Combine(Home, "mt32-roms");
 

@@ -16,6 +16,10 @@ public sealed partial class Machine
 
     private bool _extendedPrefix;
 
+    // the keys the host holds down, as the scan code with 100h for an extended key: a saved
+    // state carries them, so that loading one can let them go (see ReleaseKeys)
+    private readonly HashSet<ushort> _keysDown = [];
+
     /// <summary>
     /// A key goes down, by its scan code (set 1, as the PC's keyboard sends it). Keys of the AT's
     /// added block, such as the separate arrows and the right Ctrl, are extended: they're sent
@@ -29,6 +33,7 @@ public sealed partial class Machine
         }
 
         _keyboard.Send((byte)(scanCode & 0x7F));
+        _keysDown.Add((ushort)((scanCode & 0x7F) | (extended ? 0x100 : 0)));
     }
 
     /// <summary>A key comes up: its scan code with bit 7 set.</summary>
@@ -40,6 +45,20 @@ public sealed partial class Machine
         }
 
         _keyboard.Send((byte)(scanCode | 0x80));
+        _keysDown.Remove((ushort)((scanCode & 0x7F) | (extended ? 0x100 : 0)));
+    }
+
+    /// <summary>
+    /// Lets go of every key the machine thinks is held down. After loading a saved state, the
+    /// keys held when it was saved are down as far as the game knows, whatever the host's
+    /// keyboard is doing now: the player lets them go, and presses again the ones still held.
+    /// </summary>
+    public void ReleaseKeys()
+    {
+        foreach (ushort key in _keysDown.ToArray())
+        {
+            ReleaseKey((byte)key, (key & 0x100) != 0);
+        }
     }
 
     /// <summary>

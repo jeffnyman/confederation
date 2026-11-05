@@ -66,6 +66,9 @@ internal sealed class Mt32Module : ISoundSource, IMidiOut
         }
     }
 
+    /// <summary>The synth's ROMs and what's made from them, which a saved state refers to rather than holds.</summary>
+    internal object[] Fixed => _synth.Fixed;
+
     /// <inheritdoc/>
     public void Message(uint message) => _synth.PlayMsgNow(message);
 

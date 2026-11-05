@@ -32,8 +32,10 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
 7. **Per-game profiles.** *Done*: each series' speed, controls and sound device kept in one
    settings file, the games known by short names (`wc1`, `sm2`, `so1`...), and a menu in a window
    when none is named ([docs/profiles-and-the-menu.md](docs/profiles-and-the-menu.md)).
-8. **Save states.** The whole machine saved and restored: the processor, memory, every device,
-   DOS's open files, and the synthesizers' own state.
+8. **Save states.** *Done*: the whole machine saved and restored, found by walking its objects:
+   the processor, memory, every device, DOS's open files, and the MT-32's synthesizer down to its
+   notes in flight. Ctrl+F5 saves, Ctrl+F9 loads, `--resume` starts from one
+   ([docs/save-states.md](docs/save-states.md)).
 
 ## *Wing Commander III*, the first stretch
 

@@ -8,6 +8,14 @@ namespace Confederation.Core.Dos;
 /// </summary>
 internal sealed class DosDrive(string gameFolder, string saveFolder)
 {
+    // the folders the drive was made with, which a saved state doesn't carry: a state goes
+    // into a machine made with folders of its own
+    [NotSaved]
+    private readonly string _gameFolder = gameFolder;
+
+    [NotSaved]
+    private readonly string _saveFolder = saveFolder;
+
     // files a program deleted that exist in the game's folder, which isn't changed
     private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
 
@@ -67,7 +75,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             return null;
         }
 
-        if (Find(saveFolder, parts) is { } saved && File.Exists(saved))
+        if (Find(_saveFolder, parts) is { } saved && File.Exists(saved))
         {
             return saved;
         }
@@ -77,13 +85,13 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             return null;
         }
 
-        return Find(gameFolder, parts) is { } original && File.Exists(original) ? original : null;
+        return Find(_gameFolder, parts) is { } original && File.Exists(original) ? original : null;
     }
 
     public bool DirectoryExists(string[] parts) =>
         parts.Length == 0 ||
-        Find(saveFolder, parts) is { } saved && Directory.Exists(saved) ||
-        Find(gameFolder, parts) is { } original && Directory.Exists(original);
+        Find(_saveFolder, parts) is { } saved && Directory.Exists(saved) ||
+        Find(_gameFolder, parts) is { } original && Directory.Exists(original);
 
     /// <summary>
     /// The host path to write a DOS path to, in the save folder, creating its directories. With
@@ -92,7 +100,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
     /// </summary>
     public string ForWriting(string[] parts, bool keep)
     {
-        string directory = saveFolder;
+        string directory = _saveFolder;
         foreach (var part in parts[..^1])
         {
             directory = Find(directory, [part]) ?? Path.Combine(directory, part);
@@ -117,12 +125,12 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             return false;
         }
 
-        if (file.StartsWith(saveFolder, StringComparison.OrdinalIgnoreCase))
+        if (file.StartsWith(_saveFolder, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(file);
         }
 
-        if (Find(gameFolder, parts) is { } original && File.Exists(original))
+        if (Find(_gameFolder, parts) is { } original && File.Exists(original))
         {
             _deleted.Add(Join(parts));
         }
@@ -145,7 +153,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
     public IEnumerable<FileSystemInfo> List(string[] directory)
     {
         var seen = new Dictionary<string, FileSystemInfo>(StringComparer.OrdinalIgnoreCase);
-        foreach (var root in new[] { saveFolder, gameFolder })
+        foreach (var root in new[] { _saveFolder, _gameFolder })
         {
             if ((directory.Length == 0 ? root : Find(root, directory)) is not { } host || !Directory.Exists(host))
             {
@@ -155,7 +163,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             foreach (var entry in new DirectoryInfo(host).EnumerateFileSystemInfos())
             {
                 string name = entry.Name.ToUpperInvariant();
-                if (root == gameFolder && _deleted.Contains(Join([.. directory, name])))
+                if (root == _gameFolder && _deleted.Contains(Join([.. directory, name])))
                 {
                     continue;
                 }

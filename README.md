@@ -29,7 +29,8 @@ With no game named, a menu lists them, and a game's folder dropped on its window
 `--remember` keeps a run's options as the game's own, and `--list` shows what's set up.
 
 The game's folder is only read; saves go to a folder of their own. A click in the window gives
-the game the mouse (Ctrl+F10 takes it back), F11 is full screen, F12 full speed, Pause pauses, and
+the game the mouse (Ctrl+F10 takes it back), F11 is full screen, F12 full speed, Pause pauses,
+Ctrl+F5 saves the whole machine's state and Ctrl+F9 loads it back (`--resume` starts from it), and
 `--help` lists the rest. `--music roland --mt32-roms <folder>` plays the
 music on an emulated Roland MT-32 instead; its ROMs aren't included.
 
