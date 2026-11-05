@@ -34,6 +34,7 @@ games.
    game by keyboard without a person at the keys.
 8. [The sound](the-sound.md): what the games ask for, the OPL FM synthesizer and the card around
    it, making each sample just in time, letting the sound device set the pace, and the Roland
-   MT-32 behind an MPU-401, with how the games' settings were worked out by trying them.
+   MT-32 behind an MPU-401, with how the games' settings were worked out by trying them, and the
+   Sound Blaster's digitized sound, the DMA controller that feeds it, and its interrupt on time.
 
 More notes will follow as the work does: the rest of the sound, and each game as it comes up.

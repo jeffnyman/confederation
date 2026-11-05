@@ -104,6 +104,54 @@ public sealed class GameStartTests : IDisposable
         Assert.True(rms > 100, $"the music is nearly silent: {rms:F0}");
     }
 
+    [Fact]
+    public void Wing_Commander_II_speaks_on_the_sound_blaster()
+    {
+        if (TestData.Game("Wing Commander II") is not { } folder)
+        {
+            return;
+        }
+
+        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        machine.Load("WC2.EXE");
+
+        void Press(byte code, double seconds)
+        {
+            machine.PressKey(code);
+            machine.Run((long)(machine.InstructionsPerSecond * seconds));
+            machine.ReleaseKey(code);
+            machine.Run(machine.InstructionsPerSecond / 2);
+        }
+
+        // at the title menu, Up puts the pointer on "Start New Game" and Enter starts it; the
+        // introduction's first scene, the Emperor and Prince Thrakhath, is the one with speech
+        RunUntil(machine, () => machine.Time.TotalSeconds >= 65, 70L * machine.InstructionsPerSecond);
+        Assert.Contains(_log, line => line.Contains("21/25 set vector 0Dh")); // its IRQ 5 handler
+        Press(0x48, 0.3);
+        Press(0x1C, 0.2);
+        RunUntil(machine, () => _log.Any(line => line.StartsWith("sound blaster: ", StringComparison.Ordinal)), 70L * machine.InstructionsPerSecond);
+        Assert.Contains(_log, line => line.Contains("open speech.s00", StringComparison.OrdinalIgnoreCase));
+        Screenshot.WritePng(machine, Path.Combine(AppContext.BaseDirectory, "screenshots", "wc2-emperor.png"));
+
+        // eight seconds of it: one block after another, each started by the game's interrupt
+        // handler as the last ends, so the speech runs on without gaps
+        var sound = new List<short>();
+        var buffer = new short[Machine.SampleRate * 2];
+        double start = machine.Time.TotalSeconds;
+        while (machine.Time.TotalSeconds < start + 8 && machine.Run(machine.InstructionsPerSecond / 10))
+        {
+            sound.AddRange(buffer.AsSpan(0, machine.ReadSamples(buffer)));
+        }
+
+        WriteWav(Path.Combine(AppContext.BaseDirectory, "screenshots", "wc2-speech.wav"), sound);
+        var blocks = _log.Where(line => line.StartsWith("sound blaster: ", StringComparison.Ordinal)).ToList();
+        Assert.True(blocks.Count >= 15, $"only {blocks.Count} blocks in eight seconds");
+        Assert.Contains("sound blaster: 4000 bytes at 10752 Hz", blocks);
+        Assert.DoesNotContain(_log, line => line.Contains("is not done", StringComparison.Ordinal));
+        double rms = Math.Sqrt(sound.Average(sample => (double)sample * sample));
+        Assert.True(rms > 1000, $"the speech is nearly silent: {rms:F0}");
+    }
+
     private static void WriteWav(string path, List<short> samples)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

@@ -157,9 +157,10 @@ public sealed partial class Machine : ICpuBus
                     return false;
                 }
 
-                // nothing happens until the next interrupt, so the time skips to it
+                // nothing happens until the next interrupt, so the time skips to it: the timer's,
+                // or the sound card's
                 long irq = (long)Math.Ceiling(_nextIrq0 * InstructionsPerSecond / IntervalTimer.Frequency);
-                _time = Math.Clamp(irq, _time + 1, end);
+                _time = Math.Clamp(Math.Min(irq, _soundEventAt), _time + 1, end);
             }
             else
             {
@@ -168,6 +169,11 @@ public sealed partial class Machine : ICpuBus
             }
 
             UpdateTimer();
+            if (_time >= _soundEventAt)
+            {
+                SoundEvent();
+            }
+
             _keyboard.Update();
             if (_pic.HasInterrupt && Cpu.InterruptsEnabled)
             {
@@ -267,6 +273,16 @@ public sealed partial class Machine : ICpuBus
             case 0x330:
             case 0x331:
                 return _mpu.Read(port);
+            case >= 0x224 and <= 0x22F:
+                return _soundBlaster.Read(port);
+            case <= 0x0F:
+            case 0x81:
+            case 0x82:
+            case 0x83:
+            case 0x87:
+                // the DMA controller's addresses and counts move as the sound plays
+                UpdateSound();
+                return _dma.In(port);
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
             case 0x3D5:
@@ -324,6 +340,20 @@ public sealed partial class Machine : ICpuBus
             case 0x331:
                 UpdateSound();
                 _mpu.Write(port, value);
+                break;
+            case >= 0x224 and <= 0x22F:
+                UpdateSound();
+                _soundBlaster.Write(port, value);
+                ScheduleSoundEvent();
+                break;
+            case <= 0x0F:
+            case 0x81:
+            case 0x82:
+            case 0x83:
+            case 0x87:
+                UpdateSound();
+                _dma.Out(port, value);
+                ScheduleSoundEvent();
                 break;
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:

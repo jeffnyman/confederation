@@ -1,3 +1,4 @@
+using Confederation.Core.Devices;
 using Confederation.Core.Sound;
 using Confederation.Core.Sound.Mt32;
 
@@ -17,6 +18,12 @@ public sealed partial class Machine
 
     private readonly Opl _opl = new(SampleRate);
     private Mpu401 _mpu = null!;
+    private DmaController _dma = null!;
+    private SoundBlaster _soundBlaster = null!;
+
+    // when the sound must next be made up to, because a device will interrupt then; an
+    // instruction count, as _time is
+    private long _soundEventAt = long.MaxValue;
     private Mt32Module? _mt32;
     private readonly List<ISoundSource> _sources = [];
     private readonly short[] _output = new short[OutputCapacity];
@@ -81,6 +88,30 @@ public sealed partial class Machine
     {
         _sources.Add(_opl);
         _mpu = new Mpu401(line => Log?.Invoke(line));
+
+        // the Sound Blaster's digital sound, through DMA channel 1, interrupting on IRQ 5
+        _dma = new DmaController(Read, Write);
+        _soundBlaster = new SoundBlaster(_dma, 1, SampleRate, () => _pic.Raise(5), line => Log?.Invoke(line));
+        _sources.Add(_soundBlaster);
+    }
+
+    /// <summary>
+    /// Works out when a device will next interrupt by itself as its sound plays (the Sound
+    /// Blaster, at the end of a block), so the sound is made up to that moment and the interrupt
+    /// comes on time, not at the next port write. Called whenever that could have changed.
+    /// </summary>
+    private void ScheduleSoundEvent()
+    {
+        int frames = _soundBlaster.FramesUntilInterrupt;
+        _soundEventAt = frames < 0
+            ? long.MaxValue
+            : (long)Math.Ceiling((double)(_samples + frames) * InstructionsPerSecond / SampleRate);
+    }
+
+    private void SoundEvent()
+    {
+        UpdateSound();
+        ScheduleSoundEvent();
     }
 
     /// <summary>The machine's time in seconds, as precisely as the instruction count gives it.</summary>

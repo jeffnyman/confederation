@@ -1,11 +1,13 @@
 # The sound
 
-Both games play their scores, on an emulated AdLib or an emulated Roland MT-32. This note covers
-the FM synthesizer the AdLib carried, how the machine finds out when to make each sample, how the
-player keeps the sound and the picture together, and the MT-32 with the MPU-401 interface in front
-of it. The Sound Blaster's digitized sound comes next, and will be added here.
+Both games play their scores, on an emulated AdLib or an emulated Roland MT-32, and *Wing
+Commander II* speaks through an emulated Sound Blaster. This note covers the FM synthesizer the
+AdLib carried, how the machine finds out when to make each sample, how the player keeps the sound
+and the picture together, the MT-32 with the MPU-401 interface in front of it, and the Sound
+Blaster's digitized sound with the DMA controller that feeds it.
 
-The code is `src/Confederation.Core/Sound/` and `Machine.Sound.cs`, and `Sdl/SdlAudio.cs` in the player.
+The code is `src/Confederation.Core/Sound/`, `Devices/DmaController.cs` and `Machine.Sound.cs`, and
+`Sdl/SdlAudio.cs` in the player.
 
 ## What the games ask for
 
@@ -17,8 +19,9 @@ the service log:
 - **Each game's config file** names its devices: *Wing Commander*'s `WINGCMDR.CFG` holds
   `v a904 z`, and *Wing Commander II*'s `wc2.cfg` holds `v a904 c25 d1`. The format isn't
   documented. Trying letters showed that `a…` means the AdLib and `r` the Roland
-  ([below](#which-letter-is-the-roland)). `c25 d1` matches a Sound Blaster at 2**2**0h, IRQ **5**,
-  DMA **1**, which is a guess to confirm.
+  ([below](#which-letter-is-the-roland)), and that `c25` is the Sound Blaster at 2**2**0h and IRQ
+  **5**: with `c35` the game looks for the card at 236h, and with `c27` it takes over IRQ 7's vector
+  instead of IRQ 5's. `d1` is then most likely DMA **1** (*to confirm*).
 - **The log**: *Wing Commander* writes the AdLib's ports 388h and 389h and nothing else that
   makes sound. *Wing Commander II* writes the AdLib too, and also resets a Sound Blaster's DSP at
   226h and reads 22Ah and 22Eh, which is how a program finds the card's digitized sound.
@@ -109,6 +112,15 @@ sound is dropped.
   the middle of a message, and System Exclusive; in intelligent mode, data goes nowhere except the
   one message after a "want to send". With the ROMs at hand, the module shows a message sent to
   its display and sounds a note.
+- **The DMA controller and the DSP** (`SoundBlasterTests.cs`): a channel moves its bytes and stops
+  at its terminal count, or starts over in auto-initialize mode, and wraps within its 64 KB page;
+  the DSP resets with AAh and answers its version; a forced interrupt comes at once and is
+  acknowledged; a block plays loudly and interrupts on exactly its last sample, which
+  `FramesUntilInterrupt` said beforehand; auto-initialize interrupts at each block's end until
+  told to stop; a masked channel holds the DSP; direct output sets the level at once.
+- **The game on the Sound Blaster**: *Wing Commander II* starts a new game from its menu and reaches
+  the Emperor's scene (`wc2-emperor.png`), and eight seconds of speech are recorded to
+  `wc2-speech.wav`: at least fifteen blocks, back to back, and loud.
 - **The game on the Roland**: the intro runs with `r` in its config, the display reads "Origin
   Sound System!", the first ten seconds are silent while the instruments go across, and there's
   music after seventeen. It's recorded to `wc-intro-mt32.wav`. Without the ROMs (in `_mt32-roms`
@@ -198,8 +210,87 @@ firmware is known to overflow its buffer when sent data too fast). So the intro 
 the game's own pacing, not the emulator's (*to confirm against DOSBox*). *Wing Commander II* sends
 118 messages and starts its notes at about 14.5 seconds.
 
+## The Sound Blaster's digitized sound
+
+Creative's Sound Blaster (1989) carried an AdLib's FM chip, which is how it played everyone's
+music, and something the AdLib hadn't: a **DSP**, a small microcontroller with a digital-to-analog
+converter, which plays recorded sound. That's *Wing Commander II*'s speech. The machine's card is
+a Sound Blaster 16 (DSP version 4.05), as in GOG's settings, at 220h, IRQ 5 and DMA 1, written from
+DOSBox's `sblaster.cpp` (`Sound/SoundBlaster.cs`).
+
+### Talking to the DSP
+
+The DSP has four ports, at the card's base plus 6, A, C and E:
+
+- **Reset** (226h): write 1, then 0, and the DSP answers AAh. That's how a program finds the card,
+  and the probe *Wing Commander II* made at start-up.
+- **Commands** (22Ch): a command byte and its arguments, written once bit 7 of a read of the same
+  port says the DSP is ready.
+- **Answers** (22Ah), read once bit 7 of **22Eh** says one is waiting. Reading 22Eh also
+  acknowledges the card's interrupt.
+
+The commands that matter for playing are few: **40h** sets the rate as a "time constant" (256 less
+a million over the rate), **D1h** turns the speaker on, and **14h** plays a block of 8-bit,
+unsigned samples of a given length. **1Ch** plays blocks over and over ("auto-initialize"), which
+later games use. Version (E1h), identification (E0h), a forced interrupt (F2h, which programs use
+to find the card's IRQ) and a few more answer as DOSBox's do. Any other command is logged and
+skipped.
+
+### DMA: the samples come by themselves
+
+The DSP doesn't take its samples from the processor. A program puts the sound in memory and sets up
+a channel of the **8237 DMA controller** (`Devices/DmaController.cs`, from DOSBox's `dma.cpp`)
+to hand it over: the buffer's address and its length less one, the direction, and then unmasks the
+channel. The DSP takes a byte through the channel whenever it needs one, and the channel steps its
+address and counts down, without the processor. When the count passes zero, the channel reaches
+its "terminal count" and stops (or starts over, in auto-initialize mode).
+
+The 8237 is a 1970s chip with 16-bit addresses. The top bits of a PC's address come from a separate
+page register that doesn't count, so a transfer can't cross a 64 KB boundary: it wraps within its
+page. That's why DOS programs of the time align their sound buffers carefully. Its 16-bit registers
+are written and read a byte at a time, low then high, through a flip-flop.
+
+### The interrupt, on time
+
+At the end of a block the DSP raises its interrupt, and that's what keeps speech going: *Wing
+Commander II*'s interrupt handler starts the next block. If the interrupt comes late, there's a gap
+in the speech, as long as it's late.
+
+The samples are made just in time, as the FM chip's are: the DSP takes bytes through DMA as the
+sound is rendered, and raises its interrupt when it takes a block's last byte. But rendering only
+happens at a port write or the end of a run, up to 14 ms apart, and a program waiting for the
+interrupt writes to no port. So the machine also asks the card how many samples are left until its
+interrupt (`FramesUntilInterrupt`), works out the instruction at which that sample falls, and
+makes the sound up to then: a **sound event**, checked alongside the timer in the run loop. The
+interrupt comes on the very sample it would on the card. Any write to the card or the DMA
+controller works the event out again, since it may start, stop or change the block, and a halted
+processor waiting for an interrupt skips ahead to the sound event as it does to the timer's.
+
+Sound is fetched from memory as it's rendered, so a program that writes into its buffer sees its
+writes played if the playing hasn't reached them yet, as on the real card. Reading the DMA
+controller's address and count makes the sound first, so a program polling them sees the channel
+where it would really be.
+
+### What *Wing Commander II* does
+
+At start-up, it resets the DSP, sets the time constant to A3h (10,752 samples a second), and turns
+the speaker on. Then it takes over IRQ 5's vector (0Dh). Without the *Speech Accessory Pack*, the
+game's own README says, its only speech is in the first scene of the introduction, where the
+Emperor and Prince Thrakhath plan the war, and the introduction plays when a new game is started.
+At the title menu the pointer starts below the "Start New Game" button. A tap of Up puts it on the
+button, and Enter starts the game.
+
+Then the game opens `speech.s00` and plays it in single-cycle blocks of 4,000 bytes, a little over
+a third of a second each. Its interrupt handler starts each block the moment the last one ends,
+within a tenth of a millisecond of machine time. In the log, every block is a line such as
+`sound blaster: 4000 bytes at 10752 Hz`.
+
+### Not done
+
+16-bit sound (on the AT's second DMA controller), the ADPCM-compressed formats, recording, and the
+SB16's mixer's volume controls. Nothing *Wing Commander II* has asked for so far needs them (only its
+opening has been run). The commands are logged if a program uses them.
+
 ## Still to come
 
-- **The Sound Blaster's DSP and DMA**, for digitized sound: *Wing Commander II*'s speech and
-  effects. That needs the 8237 DMA controller, and the DSP's IRQ.
 - **The PC speaker**, the timer's channel 2 through port 61h, for whatever still beeps.
