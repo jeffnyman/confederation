@@ -59,5 +59,8 @@ games.
 15. [*Wing Commander III*](wing-commander-iii.md): GOG's CD image and folders, and Origin's
     loader on the DPMI host as far as the game's first file on the CD: DOS's list of lists, and
     a directory of its own.
+16. [The CD](the-cd.md): ISO 9660, GOG's four CDs in one image, a second, read-only drive whose
+    files are windows on the image, MSCDEX, and what *Wing Commander III* read from it on the way
+    to its opening movie.
 
 More notes will follow as the work does, and each game as it comes up.

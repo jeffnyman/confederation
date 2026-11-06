@@ -63,12 +63,18 @@ folder, as C:. Observed in the log, at 20,000 cycles:
 Its protected mode needed nothing new from the host. Origin's loader uses DPMI as PMODE/W does,
 for descriptors, memory, calls down to real mode, and vectors.
 
-## Next
+## With the CD
 
-The CD (step 10): `DATA.DAT` as drive D:, with MSCDEX's answers, so that `WC3.EXE` can run
-from it as GOG runs it, and `GLOBALS.IFF` and the `.TRE` archives can be read. After that,
-probably:
+With `DATA.DAT` as drive D: ([the CD](the-cd.md)), the game runs from it as GOG runs it. It
+reads its archives from the CD, makes its swap file, loads its sound drivers, and starts its
+opening movie, whose first frame it draws. There it stays. The likely cause is the Sound
+Blaster 16's 16-bit sound, which HMI's driver started and the machine doesn't have yet. *To
+confirm.*
 
-- the floating-point unit (to confirm: it didn't come up before the CD);
+Still to come, probably:
+
+- the Sound Blaster 16's 16-bit sound, and the second DMA controller it uses;
+- the floating-point unit (*to confirm*: it hasn't come up yet);
 - VESA, for its 640 by 480 mode, which it manages without;
-- a much faster processor (step 11).
+- a much faster processor (step 11);
+- the player knowing the game, which so far is run by a test harness.

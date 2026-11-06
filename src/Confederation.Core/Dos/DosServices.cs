@@ -38,26 +38,33 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
     private bool _betweenPrograms;
 
     /// <summary>
-    /// Loads a program from drive C:, or starts a batch file, which loads the first program it
-    /// names. When a batch file runs none, the machine has ended before it started.
+    /// Loads a program from drive C: or the CD, or starts a batch file, which loads the first
+    /// program it names. When a batch file runs none, the machine has ended before it started.
+    /// A program named with its drive's letter is run from that drive, as if its letter had been
+    /// typed first: <c>D:\WC3.EXE</c> leaves D: the current drive, as GOG's setup does.
     /// </summary>
     public void Load(string program, string arguments)
     {
-        string[] parts = drive.Parse(program) ?? throw new FileNotFoundException(program);
-        if (drive.FindFile(parts) is null)
+        var location = Locate(program) ?? throw new FileNotFoundException($"{program} isn't on a drive.", program);
+        if (program.Length >= 2 && program[1] == ':')
         {
-            throw new FileNotFoundException($"{program} isn't on drive C:.", program);
+            _currentDrive = location.Cd ? DriveD : DriveC;
         }
 
-        if (parts[^1].EndsWith(".BAT", StringComparison.Ordinal))
+        if (!location.Cd && location.Parts.Length > 0 && location.Parts[^1].EndsWith(".BAT", StringComparison.Ordinal))
         {
+            if (drive.FindFile(location.Parts) is null)
+            {
+                throw new FileNotFoundException($"{program} isn't on drive C:.", program);
+            }
+
             _shell ??= new CommandShell(this, drive, machine);
-            _shell.Start(parts, arguments);
+            _shell.Start(location.Parts, arguments);
             NextCommand();
             return;
         }
 
-        LoadProgram(parts, arguments);
+        LoadProgram(location, arguments);
     }
 
     /// <summary>Whether a program has ended and a batch file has more lines to run.</summary>
@@ -78,14 +85,30 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
     }
 
     /// <summary>Loads a program by its path on drive C:, and readies the processor to run it.</summary>
-    internal void LoadProgram(string[] parts, string arguments)
+    internal void LoadProgram(string[] parts, string arguments) => LoadProgram(new Location(false, parts), arguments);
+
+    /// <summary>Loads a program by its place on a drive, and readies the processor to run it.</summary>
+    private void LoadProgram(Location location, string arguments)
     {
         InitializeArena();
 
-        string program = DosDrive.Join(parts);
-        string file = drive.FindFile(parts) ?? throw new FileNotFoundException($"{program} isn't on drive C:.", program);
-        byte[] image = File.ReadAllBytes(file);
-        string dosPath = "C:\\" + DosDrive.Join(parts);
+        string dosPath = location.Name;
+        byte[] image;
+        if (location.Cd)
+        {
+            var entry = CdFile(location.Parts) ?? throw new FileNotFoundException($"{dosPath} isn't on the CD.", dosPath);
+            using var stream = _cd!.Open();
+            stream.Position = entry.Sector * IsoImage.SectorSize;
+            image = new byte[entry.Size];
+            stream.ReadExactly(image);
+        }
+        else
+        {
+            string file = drive.FindFile(location.Parts) ?? throw new FileNotFoundException($"{dosPath} isn't on drive C:.", dosPath);
+            image = File.ReadAllBytes(file);
+        }
+
+        string program = location.Parts[^1];
 
         // the environment: variables, then a word of 1 and the program's full path, by which
         // programs find the folder they were run from
@@ -107,7 +130,7 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
             throw new NotSupportedException($"{program} isn't an MZ executable; .COM programs aren't loaded yet.");
         }
 
-        LoadExe(image, Path.GetFileNameWithoutExtension(file), environmentSegment, arguments);
+        LoadExe(image, Path.GetFileNameWithoutExtension(program), environmentSegment, arguments);
         machine.Trace($"loaded {dosPath} at {_psp:X4}h, {arguments}");
     }
 
@@ -460,8 +483,16 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
 
                 break;
             case 0x0D: break;
-            case 0x0E: cpu.Al = 3; break;
-            case 0x19: cpu.Al = 2; break;
+            case 0x0E:
+                // select a drive (DL, 0 for A:): one that isn't there is left as it was
+                if (DriveExists(cpu.Dl))
+                {
+                    _currentDrive = cpu.Dl;
+                }
+
+                cpu.Al = LastDrive;
+                break;
+            case 0x19: cpu.Al = (byte)_currentDrive; break;
             case 0x1A:
                 _dtaSegment = cpu.Ds;
                 _dtaOffset = cpu.Dx;
@@ -520,11 +551,27 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
                 machine.Trace($"21/35 get vector {cpu.Al:X2}h: {cpu.Es:X4}:{cpu.Bx:X4}");
                 break;
             case 0x36:
-                // a drive of 8-sector clusters of 512 bytes, about 128 MB of it free
-                cpu.Ax = 8;
-                cpu.Bx = 0x7FFF;
-                cpu.Cx = 512;
-                cpu.Dx = 0xFFFF;
+                if (!DriveExists(DriveIn(cpu.Dl)))
+                {
+                    cpu.Ax = 0xFFFF;
+                }
+                else if (DriveIn(cpu.Dl) == DriveD)
+                {
+                    // the CD: full, its clusters a sector each
+                    cpu.Ax = 1;
+                    cpu.Bx = 0;
+                    cpu.Cx = IsoImage.SectorSize;
+                    cpu.Dx = (ushort)Math.Min(_cd!.Sectors, 0xFFFF);
+                }
+                else
+                {
+                    // a drive of 8-sector clusters of 512 bytes, about 128 MB of it free
+                    cpu.Ax = 8;
+                    cpu.Bx = 0x7FFF;
+                    cpu.Cx = 512;
+                    cpu.Dx = 0xFFFF;
+                }
+
                 break;
             case 0x37:
                 if (cpu.Al == 0)

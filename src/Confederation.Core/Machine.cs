@@ -164,6 +164,20 @@ public sealed partial class Machine : ICpuBus
     }
 
     /// <summary>
+    /// Puts a CD's image, in ISO 9660, in drive D:, read through MSCDEX as a DOS drive. Programs
+    /// can be run from it, as <c>D:\WC3.EXE</c>.
+    /// </summary>
+    /// <param name="image">The image's file, as GOG's <c>DATA.DAT</c>.</param>
+    /// <returns>The volume's name, as in <c>WC3_CD1</c>.</returns>
+    /// <exception cref="InvalidDataException">The file isn't an ISO 9660 image.</exception>
+    public string InsertCd(string image)
+    {
+        var iso = new IsoImage(image);
+        _dos.InsertCd(iso);
+        return iso.Label;
+    }
+
+    /// <summary>
     /// Loads a program from drive C: as DOS would, with a command tail, and readies the
     /// processor to run it. A batch file (<c>.BAT</c>) is run as COMMAND.COM would, program
     /// after program, and the machine runs on until the batch file ends.
@@ -487,6 +501,9 @@ public sealed partial class Machine : ICpuBus
 
     /// <summary>The program has ended: a DPMI host it was using lets it go.</summary>
     internal void ProgramEnded() => _dpmi.Release();
+
+    /// <summary>Closes every file the program has open on the host, for a test that's done with the machine.</summary>
+    internal void CloseFiles() => _dos.CloseFiles();
 
     // ---- the services ------------------------------------------------------------------------
 

@@ -49,10 +49,21 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             path = path[2..];
         }
 
+        return Resolve(path, CurrentDirectory);
+    }
+
+    /// <summary>
+    /// A path on a drive, without its letter, as components from the root, uppercase, with "."
+    /// and ".." resolved against the drive's current directory. Null when it climbs above the
+    /// root. For any drive: the CD's paths are resolved the same way.
+    /// </summary>
+    public static string[]? Resolve(string path, string currentDirectory)
+    {
+        path = path.Trim().Replace('/', '\\').ToUpperInvariant();
         var parts = new List<string>();
-        if (!path.StartsWith('\\') && CurrentDirectory.Length > 0)
+        if (!path.StartsWith('\\') && currentDirectory.Length > 0)
         {
-            parts.AddRange(CurrentDirectory.Split('\\'));
+            parts.AddRange(currentDirectory.Split('\\'));
         }
 
         foreach (var part in path.Split('\\', StringSplitOptions.RemoveEmptyEntries))

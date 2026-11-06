@@ -18,7 +18,35 @@ internal sealed partial class DosServices
     };
 
     // searches in progress, by the address of the disk transfer area each one fills
-    private readonly Dictionary<uint, Queue<FileSystemInfo>> _searches = [];
+    private readonly Dictionary<uint, Queue<Found>> _searches = [];
+
+    /// <summary>A file or directory a search found, on either drive.</summary>
+    private sealed class Found
+    {
+        public string Name { get; init; } = "";
+
+        public bool IsDirectory { get; init; }
+
+        public long Size { get; init; }
+
+        public DateTime Time { get; init; }
+
+        public static Found From(FileSystemInfo entry) => new()
+        {
+            Name = entry.Name.ToUpperInvariant(),
+            IsDirectory = entry is DirectoryInfo,
+            Size = entry is FileInfo file ? file.Length : 0,
+            Time = entry.LastWriteTime,
+        };
+
+        public static Found From(IsoImage.Entry entry) => new()
+        {
+            Name = entry.Name,
+            IsDirectory = entry.IsDirectory,
+            Size = entry.IsDirectory ? 0 : entry.Size,
+            Time = entry.Time,
+        };
+    }
 
     /// <summary>
     /// An open file or device. A file opened for writing is read from the game's folder until the
@@ -39,6 +67,30 @@ internal sealed partial class DosServices
         public bool Copied { get; set; }
 
         public bool IsDevice => Stream is null;
+
+        /// <summary>
+        /// For a file on the CD, where it starts in the image: its stream is the whole image,
+        /// and the file is a window on it.
+        /// </summary>
+        public long Origin { get; init; }
+
+        /// <summary>For a file on the CD, its length; -1 for a file of its own, as long as its stream.</summary>
+        public long Size { get; init; } = -1;
+
+        /// <summary>For a file on the CD, its date, from the disc.</summary>
+        public DateTime? Time { get; init; }
+
+        /// <summary>The DOS drive it's on: 2 for C:, 3 for the CD.</summary>
+        public int Drive { get; init; } = DriveC;
+
+        /// <summary>The position in the file, the stream's less where the file starts.</summary>
+        public long Position
+        {
+            get => Stream!.Position - Origin;
+            set => Stream!.Position = Origin + value;
+        }
+
+        public long Length => Size >= 0 ? Size : Stream!.Length;
 
         public static OpenFile Device(string name) => new() { Name = name };
     }
@@ -144,7 +196,13 @@ internal sealed partial class DosServices
             return;
         }
 
-        string[]? parts = drive.Parse(name);
+        if (Locate(name) is { Cd: true } onCd)
+        {
+            OpenOnCd(cpu, name, onCd.Parts, mode);
+            return;
+        }
+
+        string[]? parts = Locate(name)?.Parts;
         string? file = parts is null ? null : drive.FindFile(parts);
         if (parts is null || file is null)
         {
@@ -160,10 +218,50 @@ internal sealed partial class DosServices
         machine.Trace($"21/3D open {name} ({(mode == 0 ? "read" : "write")}): handle {handle}, {stream.Length} bytes");
     }
 
+    /// <summary>Opens a file on the CD: for reading only, as a window on the image.</summary>
+    private void OpenOnCd(Registers cpu, string name, string[] parts, int mode)
+    {
+        if (CdFile(parts) is not { } entry)
+        {
+            machine.Trace($"21/3D open {name}: not found");
+            Fail(parts.Length > 0 && CdDirectoryExists(parts[..^1]) ? 2 : 3);
+            return;
+        }
+
+        if (mode != 0)
+        {
+            // a CD can't be written, so opening for writing is refused
+            machine.Trace($"21/3D open {name} (write): a CD is read-only");
+            Fail(5);
+            return;
+        }
+
+        var file = new OpenFile
+        {
+            Name = "D:\\" + DosDrive.Join(parts),
+            Stream = _cd!.Open(),
+            Origin = entry.Sector * IsoImage.SectorSize,
+            Size = entry.Size,
+            Time = entry.Time,
+            Drive = DriveD,
+        };
+        file.Position = 0;
+        int handle = NewHandle(file);
+        cpu.Ax = (ushort)handle;
+        Ok();
+        machine.Trace($"21/3D open {name} (read): handle {handle}, {entry.Size} bytes, on the CD");
+    }
+
     private void Create(Registers cpu, bool replace)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        if (drive.Parse(name) is not { Length: > 0 } parts || !drive.DirectoryExists(parts[..^1]))
+        if (Locate(name) is { Cd: true })
+        {
+            Fail(5);
+            return;
+        }
+
+        if (Locate(name)?.Parts is not { Length: > 0 } parts || !drive.DirectoryExists(parts[..^1]))
         {
             Fail(3);
             return;
@@ -220,8 +318,9 @@ internal sealed partial class DosServices
         int count = 0;
         if (file.Stream is { } stream)
         {
-            var buffer = new byte[cpu.Cx];
-            count = stream.Read(buffer, 0, buffer.Length);
+            // a file on the CD ends where its window does
+            var buffer = new byte[(int)Math.Clamp(file.Length - file.Position, 0, cpu.Cx)];
+            count = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
             uint address = ((uint)cpu.Ds << 4) + cpu.Dx;
             for (int i = 0; i < count; i++)
             {
@@ -292,8 +391,8 @@ internal sealed partial class DosServices
             long target = cpu.Al switch
             {
                 0 => (uint)offset,
-                1 => stream.Position + offset,
-                _ => stream.Length + offset,
+                1 => file.Position + offset,
+                _ => file.Length + offset,
             };
 
             if (target < 0)
@@ -302,7 +401,7 @@ internal sealed partial class DosServices
                 return;
             }
 
-            position = stream.Position = target;
+            position = file.Position = target;
         }
 
         cpu.Dx = (ushort)(position >> 16);
@@ -314,29 +413,31 @@ internal sealed partial class DosServices
     private void Delete(Registers cpu)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        if (drive.Parse(name) is { } parts && drive.Delete(parts))
+        if (Locate(name) is { Cd: false } location && drive.Delete(location.Parts))
         {
             Ok();
             machine.Trace($"21/41 delete {name}");
         }
         else
         {
-            Fail(2);
+            Fail(Locate(name) is { Cd: true } ? 5 : 2);
         }
     }
 
     private void MakeDirectory(Registers cpu)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        bool made = drive.Parse(name) is { } parts && drive.MakeDirectory(parts);
+        var location = Locate(name);
+        bool made = location is { Cd: false } && drive.MakeDirectory(location.Value.Parts);
         if (made)
         {
             Ok();
         }
         else
         {
-            // access denied: DOS's answer when it's there already, as well as when it can't be made
-            Fail(drive.Parse(name) is { } p && p.Length > 0 && drive.DirectoryExists(p[..^1]) ? 5 : 3);
+            // access denied: DOS's answer when it's there already, as well as when it can't be
+            // made, and on a CD
+            Fail(location is { Cd: true } || location is { Parts: { Length: > 0 } p } && drive.DirectoryExists(p[..^1]) ? 5 : 3);
         }
 
         machine.Trace($"21/39 make directory {name}: {(made ? "made" : "failed")}");
@@ -345,7 +446,7 @@ internal sealed partial class DosServices
     private void RemoveDirectory(Registers cpu)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        bool removed = drive.Parse(name) is { } parts && drive.RemoveDirectory(parts);
+        bool removed = Locate(name) is { Cd: false } location && drive.RemoveDirectory(location.Parts);
         if (removed)
         {
             Ok();
@@ -361,7 +462,13 @@ internal sealed partial class DosServices
     private void Rename(Registers cpu)
     {
         string from = NameAt(cpu.Ds, cpu.Dx), to = NameAt(cpu.Es, cpu.Di);
-        if (drive.Parse(from) is not { } source || drive.FindFile(source) is not { } file || drive.Parse(to) is not { } target)
+        if (Locate(from) is { Cd: true } || Locate(to) is { Cd: true })
+        {
+            Fail(5);
+            return;
+        }
+
+        if (Locate(from)?.Parts is not { } source || drive.FindFile(source) is not { } file || Locate(to)?.Parts is not { } target)
         {
             Fail(2);
             return;
@@ -377,7 +484,22 @@ internal sealed partial class DosServices
     private void Attributes(Registers cpu)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        var parts = drive.Parse(name);
+        if (Locate(name) is { Cd: true } onCd)
+        {
+            // a CD's files are read-only, and their attributes can't be changed
+            var entry = _cd!.Find(onCd.Parts);
+            if (entry is null || cpu.Al != 0)
+            {
+                Fail(entry is null ? 2 : 5);
+                return;
+            }
+
+            cpu.Cx = (ushort)(entry.IsDirectory ? 0x11 : 0x01);
+            Ok();
+            return;
+        }
+
+        var parts = Locate(name)?.Parts;
         if (parts is not null && drive.FindFile(parts) is not null)
         {
             if (cpu.Al == 0)
@@ -408,7 +530,7 @@ internal sealed partial class DosServices
                 {
                     // device information: bit 7 for a device (with 80h-83h for the console's
                     // roles), and for a file the drive number, C: being 2
-                    cpu.Dx = file.IsDevice ? (ushort)(file.Name == "CON" ? 0x80D3 : 0x80C0) : (ushort)0x0002;
+                    cpu.Dx = file.IsDevice ? (ushort)(file.Name == "CON" ? 0x80D3 : 0x80C0) : (ushort)file.Drive;
                     Ok();
                 }
 
@@ -424,11 +546,32 @@ internal sealed partial class DosServices
 
                 break;
             case 0x08:
-                cpu.Ax = 1; // not removable
-                Ok();
+                // whether a drive (BL: 0 for the current one, 1 for A:) is removable. C: isn't.
+                // DOS leaves a CD to MSCDEX, and answers that the function isn't valid for it.
+                if (!DriveExists(DriveIn(cpu.Bl)))
+                {
+                    Fail(0x0F);
+                }
+                else if (DriveIn(cpu.Bl) == DriveD)
+                {
+                    Fail(0x01);
+                }
+                else
+                {
+                    cpu.Ax = 1;
+                    Ok();
+                }
+
                 break;
             case 0x09:
-                cpu.Dx = 0; // local
+                // whether a drive is remote: a CD under MSCDEX is, as a network drive is
+                if (!DriveExists(DriveIn(cpu.Bl)))
+                {
+                    Fail(0x0F);
+                    break;
+                }
+
+                cpu.Dx = (ushort)(DriveIn(cpu.Bl) == DriveD ? 0x1000 : 0);
                 Ok();
                 break;
             case 0x0E:
@@ -458,7 +601,13 @@ internal sealed partial class DosServices
     private void ChangeDirectory(Registers cpu)
     {
         string name = NameAt(cpu.Ds, cpu.Dx);
-        if (drive.Parse(name) is { } parts && drive.ChangeDirectory(parts))
+        var location = Locate(name);
+        if (location is { Cd: true } && CdDirectoryExists(location.Value.Parts))
+        {
+            _cdDirectory = DosDrive.Join(location.Value.Parts);
+            Ok();
+        }
+        else if (location is { Cd: false } && drive.ChangeDirectory(location.Value.Parts))
         {
             Ok();
         }
@@ -472,7 +621,15 @@ internal sealed partial class DosServices
 
     private void CurrentDirectory(Registers cpu)
     {
-        machine.WriteBytes(cpu.Ds, cpu.Si, [.. Encoding.ASCII.GetBytes(drive.CurrentDirectory), 0]);
+        int number = DriveIn(cpu.Dl);
+        if (!DriveExists(number))
+        {
+            Fail(0x0F);
+            return;
+        }
+
+        string directory = number == DriveD ? _cdDirectory : drive.CurrentDirectory;
+        machine.WriteBytes(cpu.Ds, cpu.Si, [.. Encoding.ASCII.GetBytes(directory), 0]);
         Ok();
     }
 
@@ -485,7 +642,7 @@ internal sealed partial class DosServices
 
         if (cpu.Al == 0)
         {
-            var time = file.Stream is { } stream ? File.GetLastWriteTime(stream.Name) : DateTime.Now;
+            var time = file.Time ?? (file.Stream is { } stream ? File.GetLastWriteTime(stream.Name) : DateTime.Now);
             (cpu.Cx, cpu.Dx) = DosTime(time);
         }
 
@@ -508,17 +665,21 @@ internal sealed partial class DosServices
     {
         string pattern = NameAt(cpu.Ds, cpu.Dx);
         int attributes = cpu.Cx;
-        var parts = drive.Parse(pattern);
-        if (parts is not { Length: > 0 } || !drive.DirectoryExists(parts[..^1]))
+        var location = Locate(pattern);
+        if (location is not { Parts: { Length: > 0 } parts }
+            || (location.Value.Cd ? !CdDirectoryExists(parts[..^1]) : !drive.DirectoryExists(parts[..^1])))
         {
             Fail(3);
             return;
         }
 
-        var matches = new Queue<FileSystemInfo>(drive.List(parts[..^1])
-            .Where(entry => Matches(entry.Name.ToUpperInvariant(), parts[^1]))
-            .Where(entry => entry is FileInfo || (attributes & 0x10) != 0)
-            .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase));
+        var entries = location.Value.Cd
+            ? _cd!.List(_cd.Find(parts[..^1])!).Select(Found.From)
+            : drive.List(parts[..^1]).Select(Found.From);
+        var matches = new Queue<Found>(entries
+            .Where(entry => Matches(entry.Name, parts[^1]))
+            .Where(entry => !entry.IsDirectory || (attributes & 0x10) != 0)
+            .OrderBy(entry => entry.Name, StringComparer.Ordinal));
         _searches[Dta] = matches;
         machine.Trace($"21/4E find {pattern}: {matches.Count} matches");
 
@@ -545,15 +706,15 @@ internal sealed partial class DosServices
 
         // the search's record: 21 bytes DOS keeps for itself, then the attribute, time, date,
         // size and name of the file found
-        var (time, date) = DosTime(entry.LastWriteTime);
-        uint size = entry is FileInfo file ? (uint)Math.Min(file.Length, uint.MaxValue) : 0;
+        var (time, date) = DosTime(entry.Time);
+        uint size = (uint)Math.Min(entry.Size, uint.MaxValue);
         machine.WriteBytes(_dtaSegment, _dtaOffset, new byte[43]);
-        machine.WriteByte(_dtaSegment, _dtaOffset + 0x15u, (byte)(entry is DirectoryInfo ? 0x10 : 0x20));
+        machine.WriteByte(_dtaSegment, _dtaOffset + 0x15u, (byte)(entry.IsDirectory ? 0x10 : 0x20));
         machine.WriteWord(_dtaSegment, _dtaOffset + 0x16u, time);
         machine.WriteWord(_dtaSegment, _dtaOffset + 0x18u, date);
         machine.WriteWord(_dtaSegment, _dtaOffset + 0x1Au, (ushort)size);
         machine.WriteWord(_dtaSegment, _dtaOffset + 0x1Cu, (ushort)(size >> 16));
-        machine.WriteBytes(_dtaSegment, _dtaOffset + 0x1Eu, [.. Encoding.ASCII.GetBytes(entry.Name.ToUpperInvariant()), 0]);
+        machine.WriteBytes(_dtaSegment, _dtaOffset + 0x1Eu, [.. Encoding.ASCII.GetBytes(entry.Name), 0]);
         Ok();
         return true;
     }

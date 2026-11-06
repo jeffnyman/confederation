@@ -375,6 +375,12 @@ public sealed partial class Machine
             return;
         }
 
+        if (Ah == 0x15 && _dos.CdCall())
+        {
+            // MSCDEX, for the CD in D:
+            return;
+        }
+
         Trace($"2F/{(ushort)Cpu.Eax:X4} nothing installed");
         if (Al == 0x00)
         {

@@ -61,7 +61,10 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
      loader runs on the host, loads the game into extended memory, makes `C:\WC3`, and stops
      at its first file on the CD, `GLOBALS.IFF`
      ([docs/wing-commander-iii.md](docs/wing-commander-iii.md)).
-10. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
+10. **CD-ROM.** *Done.* The game's ISO image as drive D:, read-only, with programs run from it, and
+    MSCDEX's answers. *Wing Commander III* runs from GOG's image, reads its archives from it, and
+    draws the first frame of its opening movie ([docs/the-cd.md](docs/the-cd.md)). It waits
+    there, most likely for the Sound Blaster 16's 16-bit sound, which comes next.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
 ## Later
