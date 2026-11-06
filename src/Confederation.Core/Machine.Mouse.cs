@@ -1,9 +1,18 @@
+using Confederation.Core.Processors;
+
 namespace Confederation.Core;
 
 // The mouse: a Microsoft-compatible mouse driver answering INT 33h, and the mouse it reads.
 public sealed partial class Machine
 {
     private const int MouseButtons = 2;
+
+    // the host call in the mouse's IRQ 12 handler, numbered for its vector, 74h
+    private const byte MouseEventService = 0x74;
+
+    // the events a program's handler can ask for, in its call mask and in AX when it's called:
+    // the mouse moved, and each button's press and release
+    private const int Moved = 0x01;
 
     private bool _mouse;
     private double _mouseX, _mouseY;
@@ -14,6 +23,12 @@ public sealed partial class Machine
     private int _mouseHidden;
     private readonly int[] _presses = new int[MouseButtons], _releases = new int[MouseButtons];
     private readonly (int X, int Y)[] _lastPress = new (int, int)[MouseButtons], _lastRelease = new (int, int)[MouseButtons];
+
+    // the program's event handler: the events it wants, whether it has one, and the events
+    // since it was last called
+    private int _eventMask;
+    private bool _eventHandler;
+    private int _events;
 
     /// <summary>
     /// Whether a mouse and its driver are installed. Without one, <c>INT 33h</c> reports no mouse,
@@ -48,7 +63,19 @@ public sealed partial class Machine
         // 16 to 8 down, so the pointer moves half as fast down as across
         _mouseX = Math.Clamp(_mouseX + (dx * 8.0 / _mickeysPer8X), _mouseMinX, _mouseMaxX);
         _mouseY = Math.Clamp(_mouseY + (dy * 8.0 / _mickeysPer8Y), _mouseMinY, _mouseMaxY);
+        if (dx != 0 || dy != 0)
+        {
+            MouseEvent(Moved);
+        }
     }
+
+    /// <summary>
+    /// The mickeys that take the pointer from one edge of the driver's area to the other, across
+    /// and down: by default 640 and 400, the area being 640 by 200 at 8 mickeys to 8 pixels
+    /// across and 16 to 8 down. A program can set another area, or another ratio.
+    /// </summary>
+    public (int X, int Y) MickeysAcross =>
+        ((_mouseMaxX - _mouseMinX + 1) * _mickeysPer8X / 8, (_mouseMaxY - _mouseMinY + 1) * _mickeysPer8Y / 8);
 
     /// <summary>A mouse button goes down or up: 0 the left, 1 the right.</summary>
     public void SetMouseButton(int button, bool down)
@@ -76,6 +103,49 @@ public sealed partial class Machine
             _releases[button]++;
             _lastRelease[button] = MousePosition;
         }
+
+        // the left button's press is 02h and release 04h, the right's 08h and 10h
+        MouseEvent(1 << (1 + (2 * button) + (down ? 0 : 1)));
+    }
+
+    /// <summary>
+    /// An event the program's handler may want: if it does, the mouse raises IRQ 12, and the
+    /// driver's handler for it calls the program's (see <see cref="MouseEvent()"/>).
+    /// </summary>
+    private void MouseEvent(int happened)
+    {
+        _events |= happened;
+        if (_eventHandler && (_events & _eventMask) != 0)
+        {
+            // IRQ 12 is the second controller's line 4
+            _pic2.Raise(12 - 8);
+        }
+    }
+
+    /// <summary>
+    /// The driver's IRQ 12 handler, between saving the program's registers and calling its event
+    /// handler: the registers the handler is called with, or carry set if there's nothing to
+    /// call it for. They're Microsoft's: AX the events since it was last called, BX the buttons
+    /// held, CX and DX the pointer, SI and DI the motion in mickeys.
+    /// </summary>
+    private void MouseEvent()
+    {
+        int events = _events & _eventMask;
+        if (!_mouse || !_eventHandler || events == 0)
+        {
+            Cpu.Eflags |= Intel386.Flag.Carry;
+            return;
+        }
+
+        var (x, y) = MousePosition;
+        _events = 0;
+        SetAx(events);
+        SetBx(_mouseButtons);
+        SetCx(x);
+        SetDx(y);
+        Cpu.Esi = (Cpu.Esi & 0xFFFF_0000) | (ushort)_mickeyCountX;
+        Cpu.Edi = (Cpu.Edi & 0xFFFF_0000) | (ushort)_mickeyCountY;
+        Cpu.Eflags &= ~Intel386.Flag.Carry;
     }
 
     private (int X, int Y) MousePosition => ((int)_mouseX, (int)_mouseY);
@@ -95,12 +165,16 @@ public sealed partial class Machine
         _mouseHidden = 1;
         Array.Clear(_presses);
         Array.Clear(_releases);
+        _eventMask = 0;
+        _eventHandler = false;
+        _events = 0;
     }
 
     /// <summary>
     /// INT 33h, the mouse driver, as Microsoft's defined it and DOSBox's <c>mouse.cpp</c> answers
     /// it: reset, the pointer's position and buttons, presses and releases counted since last
-    /// asked, the area the pointer is kept in, and the motion in mickeys.
+    /// asked, the area the pointer is kept in, the motion in mickeys, and a handler of the
+    /// program's own, which the driver calls when the mouse moves or a button goes down or up.
     /// </summary>
     /// <remarks>
     /// The driver keeps the pointer in its own coordinates, which in the 320 by 200 graphics
@@ -175,6 +249,23 @@ public sealed partial class Machine
                 SetDx(_mickeyCountY);
                 _mickeyCountX = _mickeyCountY = 0;
                 break;
+            case 0x0C:
+                // the program's event handler, at ES:DX, for the events in CX's mask
+                SetMouseEventHandler((ushort)Cpu.Ecx, Cpu.Es, (ushort)Cpu.Edx);
+                break;
+            case 0x14:
+            {
+                // the same, handing back the handler it replaces
+                ushort mask = (ushort)_eventMask;
+                ushort segment = ReadWord(BiosSegment, MouseEventHandler + 2u);
+                ushort offset = ReadWord(BiosSegment, MouseEventHandler);
+                SetMouseEventHandler((ushort)Cpu.Ecx, Cpu.Es, (ushort)Cpu.Edx);
+                SetCx(mask);
+                Cpu.Es = segment;
+                SetDx(offset);
+                break;
+            }
+
             case 0x0F:
                 _mickeysPer8X = Math.Max(1, (int)(ushort)Cpu.Ecx);
                 _mickeysPer8Y = Math.Max(1, (int)(ushort)Cpu.Edx);
@@ -190,5 +281,15 @@ public sealed partial class Machine
         }
 
         static (int Min, int Max) Range(int a, int b) => a <= b ? (a, b) : (b, a);
+    }
+
+    private void SetMouseEventHandler(ushort mask, ushort segment, ushort offset)
+    {
+        const uint at = ((uint)BiosSegment << 4) + MouseEventHandler;
+        WriteRom(at, [(byte)offset, (byte)(offset >> 8), (byte)segment, (byte)(segment >> 8)]);
+        _eventMask = mask;
+        _eventHandler = mask != 0 && (segment != 0 || offset != 0);
+        _events = 0;
+        Trace($"33/000C the program's handler at {segment:X4}:{offset:X4}, for events {mask:X2}h");
     }
 }

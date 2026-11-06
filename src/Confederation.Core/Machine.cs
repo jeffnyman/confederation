@@ -45,7 +45,11 @@ public sealed partial class Machine : ICpuBus
     private readonly DosDrive _drive;
     private readonly DosServices _dos;
     private readonly DpmiHost _dpmi;
-    private readonly InterruptController _pic = new();
+    private readonly InterruptController _pic;
+
+    // the second interrupt controller, for IRQ 8 to 15, with only the mouse's IRQ 12 let through
+    // at the start, as the mouse driver leaves it
+    private readonly InterruptController _pic2 = new(vectorBase: 0x70, mask: 0xEF);
     private readonly IntervalTimer _timer = new();
     private readonly Vga _vga = new();
     private readonly KeyboardController _keyboard = new();
@@ -68,6 +72,7 @@ public sealed partial class Machine : ICpuBus
     public Machine(string gameFolder, string saveFolder)
     {
         Cpu = new Intel386(this) { HostCall = HostCall };
+        _pic = new InterruptController(second: _pic2);
         _timer.Reloaded0 += () => _nextIrq0 = _timer.Start0 + _timer.Period0;
         _keyboard.Interrupt += () => _pic.Raise(1);
         _ems = new ExpandedMemory(this);
@@ -313,8 +318,9 @@ public sealed partial class Machine : ICpuBus
             case 0x20:
             case 0x21:
                 return _pic.Read(port);
+            case 0xA0:
             case 0xA1:
-                return _pic.SecondMask;
+                return _pic2.Read(port);
             case >= 0x40 and <= 0x43:
                 return _timer.Read(port);
             case 0x61:
@@ -379,9 +385,8 @@ public sealed partial class Machine : ICpuBus
                 _pic.Write(port, value);
                 break;
             case 0xA0:
-                break;
             case 0xA1:
-                _pic.SecondMask = value;
+                _pic2.Write(port, value);
                 break;
             case >= 0x40 and <= 0x43:
                 _timer.Write(port, value);
@@ -568,6 +573,11 @@ public sealed partial class Machine : ICpuBus
             case 0x08: TimerTick(); break;
             case 0x09: KeyboardInterrupt(); break;
             case >= 0x0A and <= 0x0F: _pic.EndOfInterrupt(); break;
+            case MouseEventService: MouseEvent(); break;
+            case >= 0x70 and <= 0x77:
+                _pic2.EndOfInterrupt();
+                _pic.EndOfInterrupt();
+                break;
             case 0x10: VideoService(); break;
             case 0x11: Cpu.Eax = (Cpu.Eax & 0xFFFF_0000) | ReadWord(0x40, 0x10); break;
             case 0x12: Cpu.Eax = (Cpu.Eax & 0xFFFF_0000) | ReadWord(0x40, 0x13); break;

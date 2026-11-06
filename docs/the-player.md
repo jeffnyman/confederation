@@ -177,12 +177,42 @@ answers):
 
 - **Reset** (function 0) says whether there's a mouse, and how many buttons. Without one, it
   answers "no mouse", and the games steer their pointers by keyboard or stick, as before.
-- **Where the pointer is, and the buttons** (function 3). Both games poll this every frame. It's
-  the only thing they read: they also set the pointer's place (function 4) as they start, and
-  that's all. They install no event handler and draw their own pointer.
+- **Where the pointer is, and the buttons** (function 3). *Wing Commander* and *Wing Commander
+  II* poll this every frame. It's the only thing they read: they also set the pointer's place
+  (function 4) as they start, and that's all. They install no event handler and draw their own
+  pointer.
 - **Presses and releases counted** since last asked (5 and 6), **the area the pointer is kept in**
   (7 and 8), **the motion** in mickeys (0Bh) and **the ratio** of mickeys to pixels (0Fh), for
   programs that want them.
+- **An event handler** of the program's own (0Ch, and 14h, which swaps one for another), which the
+  driver calls when the mouse moves or a button goes down or up. *Wing Commander III* reads the
+  mouse only this way: it never asks where the pointer is.
+
+### The event handler
+
+A program gives the driver a far address and a mask of the events it wants: motion (bit 0), and
+each button's press and release (bits 1 and 2 for the left, 3 and 4 for the right). From then on
+the driver calls it, as an interrupt handler would, with AX holding the events since the last
+call, BX the buttons held, CX and DX the pointer, and SI and DI the motion in mickeys. The
+handler returns with a `RETF`.
+
+On a real PC the driver calls it from the mouse's own interrupt. A PS/2 mouse is IRQ 12, and
+DOSBox's driver works the same way. So the machine has the AT's **second interrupt controller**
+now, for IRQ 8 to 15, as vectors 70h to 77h. It's wired to the first one's IRQ 2, which passes
+on its interrupts between IRQ 1 and IRQ 3 in priority. When an event the program wants happens,
+the mouse raises IRQ 12. The driver's handler for it, in the BIOS segment, saves every register,
+asks C# for the event, calls the program's handler with it, and ends the interrupt on both
+controllers. Before, the second controller was only a mask that nothing used, and a program's
+handler was never called.
+
+*Wing Commander III* installs its handler in real mode, at an address in conventional memory. It
+gets there while the game runs in protected mode: the DPMI host reflects IRQ 12 down to real
+mode, as it does the timer's ([the DPMI host](the-dpmi-host.md)). Without the handler, the game's
+pointer stayed in the screen's corner and nothing on its screens could be clicked. With it, the
+pointer follows the mouse, the places to go are named as it passes over them ("Go to FLIGHT
+CONTROL."), and a click goes there (observed).
+
+### The driver's coordinates
 
 Two details of the driver are worth knowing. Its coordinates aren't the screen's: in the 320 by
 200 graphics modes the driver counts **640 across** and 200 down, and a program halves the column.
@@ -206,6 +236,14 @@ over the same picture. For that, SDL is asked to apply the system's pointer spee
 mouse (`SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE`); otherwise the motion comes in the mouse's own
 counts, which depend on its resolution. **Observed:** in a window at scale 3, the picture is 960
 points across, and a point of motion is two thirds of a mickey.
+
+That's the driver's own area. A game can set another (functions 7 and 8), and *Wing Commander
+III* sets **1280 by 480**, twice as wide as its screen's 640 and more than twice as tall as its
+200 (observed: its pointer is at a quarter of the driver's column, and 200/480 of its row). By
+the default scale, a sweep across the picture took its pointer only halfway across. So the
+motion is spread over the area the game set, not the default one: the machine says how many
+mickeys take the pointer across it (`MickeysAcross`), 640 by 400 by default, and the player
+divides that by the picture's size.
 
 Games that read the motion itself, as a stick, rather than the pointer, have their own feel for
 it, and so do players. `--mouse-speed <percent>` scales it further: 50 for half as fast, 200 for

@@ -6,6 +6,7 @@ Confederation.Core.Machine.Cpu.get -> Confederation.Core.Processors.Intel386!
 Confederation.Core.Machine.DisplayHeight.get -> int
 Confederation.Core.Machine.DisplayWidth.get -> int
 Confederation.Core.Machine.ExitCode.get -> int
+Confederation.Core.Machine.MickeysAcross.get -> (int X, int Y)
 Confederation.Core.Machine.Exited.get -> bool
 Confederation.Core.Machine.In(ushort port) -> byte
 Confederation.Core.Machine.InstructionsPerSecond.get -> int

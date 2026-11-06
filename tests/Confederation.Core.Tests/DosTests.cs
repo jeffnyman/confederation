@@ -277,6 +277,65 @@ public sealed class DosTests : IDisposable
     }
 
     [Fact]
+    public void The_mickeys_across_follow_the_area_the_program_sets()
+    {
+        // Wing Commander III's area, 1280 by 480:
+        //   mov ax, 7; xor cx, cx; mov dx, 4FEh; int 33h; mov ax, 8; xor cx, cx; mov dx, 1DFh; int 33h
+        //   mov ah, 4Ch; int 21h
+        var machine = new Machine(_game, _saves) { Mouse = true };
+        Assert.Equal((640, 400), machine.MickeysAcross);
+
+        machine = Start(
+            [0xB8, 0x07, 0x00, 0x31, 0xC9, 0xBA, 0xFE, 0x04, 0xCD, 0x33, 0xB8, 0x08, 0x00, 0x31, 0xC9, 0xBA, 0xDF, 0x01, 0xCD, 0x33, 0xB4, 0x4C, 0xCD, 0x21],
+            m => m.Mouse = true);
+        Assert.Equal((1279, 960), machine.MickeysAcross);
+    }
+
+    [Fact]
+    public void The_second_interrupt_controller_lets_only_the_mouse_through()
+    {
+        // in al, 0A1h; mov ah, 4Ch; int 21h: its mask, with only IRQ 12's bit, 4, clear
+        var machine = Start([0xE4, 0xA1, 0xB4, 0x4C, 0xCD, 0x21]);
+        Assert.Equal(0xEF, machine.ExitCode);
+    }
+
+    [Theory]
+    [InlineData(0x06, 0x02)]    // AL: the events, the left button's press
+    [InlineData(0x1E, 0x01)]    // BL: the buttons held, the left
+    [InlineData(0x0E, 50)]      // CL: the column
+    public void The_mouse_driver_calls_the_programs_handler(byte register, int expected)
+    {
+        // as Wing Commander III has the driver tell it of the mouse, through a handler:
+        //   push cs; pop es; mov dx, handler; mov cx, 2 (the left button's press); mov ax, 0Ch; int 33h; sti
+        //   wait: mov al, cs:[seen]; or al, al; jz wait; mov ah, 4Ch; int 21h
+        //   handler: mov cs:[seen], al (or bl, or cl); retf
+        //   seen: db 0
+        File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(
+        [
+            0x0E, 0x07, 0xBA, 0x1A, 0x00, 0xB9, 0x02, 0x00, 0xB8, 0x0C, 0x00, 0xCD, 0x33, 0xFB,
+            0x2E, 0xA0, 0x20, 0x00, 0x08, 0xC0, 0x74, 0xF8, 0xB4, 0x4C, 0xCD, 0x21,
+            0x2E, 0x88, register, 0x20, 0x00, 0xCB,
+            0x00,
+        ]));
+        var machine = new Machine(_game, _saves) { Log = _log.Add, Mouse = true };
+        machine.MoveMouse(-5000, -5000);
+        machine.MoveMouse(50, 0);
+        machine.Load("TEST.EXE");
+        machine.Run(10_000);
+        Assert.False(machine.Exited);
+
+        // moving isn't among the events it asked for
+        machine.MoveMouse(0, 4);
+        machine.Run(10_000);
+        Assert.False(machine.Exited);
+
+        machine.SetMouseButton(0, true);
+        machine.Run(10_000);
+        Assert.True(machine.Exited, string.Join('\n', _log));
+        Assert.Equal(expected, machine.ExitCode);
+    }
+
+    [Fact]
     public void Waiting_for_a_key_works_through_a_far_call_with_interrupts_off()
     {
         // as Wing Commander's own INT 21h handler passes a call on to DOS's:

@@ -228,12 +228,15 @@ internal sealed unsafe class SdlPlayer : IDisposable
     /// Mickeys for a point of the host mouse's motion. The DOS mouse driver, by default, counts
     /// 640 of its pixels across a 320-wide mode and moves one for a mickey across, and 200 down
     /// at two mickeys each: so 640 mickeys across the picture and 400 down take the pointer from
-    /// edge to edge. Spread over the picture as shown, however big, and times the speed asked.
+    /// edge to edge. A game can set a bigger area: <i>Wing Commander III</i>'s is 1280 by 480, so
+    /// it takes twice as many across and more than twice down. Whatever the driver's area, it's
+    /// spread over the picture as shown, however big, and times the speed asked.
     /// </summary>
     private (float X, float Y) MouseScale()
     {
         var (width, height) = _window.PictureInWindow;
-        return ((float)(640 / width * _options.MouseSpeed), (float)(400 / height * _options.MouseSpeed));
+        var (across, down) = _machine.MickeysAcross;
+        return ((float)(across / width * _options.MouseSpeed), (float)(down / height * _options.MouseSpeed));
     }
 
     private void Present() => _window.Present(_machine.DisplayWidth, _machine.DisplayHeight, _machine.Render);

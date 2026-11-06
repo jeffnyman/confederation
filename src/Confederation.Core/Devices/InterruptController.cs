@@ -1,38 +1,48 @@
 namespace Confederation.Core.Devices;
 
 /// <summary>
-/// The Intel 8259 programmable interrupt controller: the PC's first one, which takes the eight
-/// hardware interrupt lines (IRQ 0, the timer, to IRQ 7) and passes them to the processor one at a
-/// time, the lowest-numbered first, as interrupt vectors 8 to 15.
+/// The Intel 8259 programmable interrupt controller. The AT has two: the first takes the eight
+/// hardware interrupt lines IRQ 0 (the timer) to IRQ 7, and passes them to the processor one at a
+/// time, the lowest-numbered first, as interrupt vectors 8 to 15. The second takes IRQ 8 to 15,
+/// as vectors 70h to 77h, and passes them through the first's IRQ 2, so they come between IRQ 1
+/// and IRQ 3 in priority.
 /// </summary>
 /// <remarks>
 /// A device raising its line sets that IRQ's bit in the request register. If its bit in the mask
 /// register is clear and no IRQ of higher priority is being serviced, the controller asks the
 /// processor for an interrupt, and when the processor takes it, the bit moves to the in-service
 /// register. It stays there, holding off that IRQ and every lower one, until the handler sends
-/// an end-of-interrupt command (20h to port 20h). A handler that forgets gets no more interrupts.
-/// The AT's second controller, for IRQ 8 to 15, isn't emulated: its mask is kept and nothing more.
+/// an end-of-interrupt command (20h to its first port). A handler that forgets gets no more
+/// interrupts. An interrupt from the second controller is in service on both, so its handler
+/// ends it on both: 20h to port A0h, then to port 20h.
 /// </remarks>
-internal sealed class InterruptController
+/// <param name="vectorBase">The vector of its first line, until a program initializes it: 08h for the first, 70h for the second.</param>
+/// <param name="mask">Its mask register at the start.</param>
+/// <param name="second">For the first controller, the second, on its line 2.</param>
+internal sealed class InterruptController(byte vectorBase = 0x08, byte mask = 0x00, InterruptController? second = null)
 {
+    // the line the second controller is wired to on the first
+    private const int Cascade = 2;
+
     private byte _request;
     private byte _inService;
-    private byte _mask;
-    private byte _vectorBase = 0x08;
+    private byte _mask = mask;
+    private byte _vectorBase = vectorBase;
     private bool _readInService;
 
     // initialization: ICW1 to port 20h starts a sequence of two or three more words to port 21h
     private int _initializationStep;
     private bool _expectIcw4;
 
-    public byte SecondMask { get; set; } = 0xFF;
+    /// <summary>A device raises one of the controller's lines, 0 to 7.</summary>
+    public void Raise(int line) => _request |= (byte)(1 << line);
 
-    public void Raise(int irq) => _request |= (byte)(1 << irq);
-
-    /// <summary>The IRQ the controller would give the processor now, or -1.</summary>
+    /// <summary>The line the controller would give the processor now, or -1.</summary>
     private int Pending()
     {
-        int ready = _request & ~_mask;
+        // the second controller's line is up while it has an interrupt to give
+        int request = _request | ((second?.HasInterrupt ?? false) ? 1 << Cascade : 0);
+        int ready = request & ~_mask;
         for (int irq = 0; irq < 8; irq++)
         {
             int bit = 1 << irq;
@@ -53,13 +63,16 @@ internal sealed class InterruptController
 
     public bool HasInterrupt => Pending() >= 0;
 
-    /// <summary>The processor takes the interrupt: its vector, its IRQ now in service.</summary>
+    /// <summary>
+    /// The processor takes the interrupt: its vector, its IRQ now in service. On the cascade line,
+    /// the second controller gives the vector, and its IRQ is in service there too.
+    /// </summary>
     public int Acknowledge()
     {
         int irq = Pending();
         _request &= (byte)~(1 << irq);
         _inService |= (byte)(1 << irq);
-        return _vectorBase + irq;
+        return irq == Cascade && second is not null ? second.Acknowledge() : _vectorBase + irq;
     }
 
     /// <summary>End of interrupt for the highest-priority IRQ in service, as BIOS handlers send it.</summary>
@@ -75,9 +88,10 @@ internal sealed class InterruptController
         }
     }
 
+    /// <summary>Reads its command port (20h or A0h) or its data port (21h or A1h).</summary>
     public byte Read(int port)
     {
-        if (port == 0x21)
+        if ((port & 1) != 0)
         {
             return _mask;
         }
@@ -85,9 +99,10 @@ internal sealed class InterruptController
         return _readInService ? _inService : _request;
     }
 
+    /// <summary>Writes its command port (20h or A0h) or its data port (21h or A1h).</summary>
     public void Write(int port, byte value)
     {
-        if (port == 0x20)
+        if ((port & 1) == 0)
         {
             if ((value & 0x10) != 0)
             {

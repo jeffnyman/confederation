@@ -70,14 +70,32 @@ reads its archives from the CD, makes its swap file, loads its sound drivers, an
 opening movie. The movie is timed by its sound, 16-bit, which comes through the second DMA
 controller. Without it, the movie stopped on its first frame. With it, the movie plays
 ([the sound](the-sound.md)): the planet, Origin's logo, the title, and the credits over a burning
-world. Esc skips it, and the game comes to its first screen, the hangar, with its mouse pointer
-(observed).
+world. Esc skips it a part at a time, and after four the game comes to its first screen, the
+hangar, with its mouse pointer (observed).
 
 While a movie plays, the game calls DOS's function 0Ch with AL=0Bh about 10,000 times a second,
 from protected mode through the DPMI host. 0Ch empties the keyboard's buffer and then runs the
 input function in AL. 0Bh isn't one DOS runs there, so the call only empties the buffer. Each
 call was logged on its way down, nearly half a million lines a minute, so the host leaves DOS's
 keyboard checks (06h, 0Bh, 0Ch) out of its log, as DOS leaves them out of its own.
+
+## Past the hangar
+
+The game is played by mouse: its screens are pictures of the carrier, and the places to go and
+the people to talk to are named as the pointer passes over them. In the hangar the pointer stayed
+in the corner. The game reads the mouse only through an **event handler** it gives the driver
+(`INT 33h` function 0Ch, for every event), and the driver here had none. With the handler called
+from IRQ 12 and the second interrupt controller ([the player](the-player.md#the-mouse)), the
+pointer moves, and (observed, by a scripted mouse):
+
+1. at the foot of the hangar's screen it says "Go to FLIGHT CONTROL.", and a click plays the
+   walk there, then shows the room;
+2. in flight control, "Talk to HOBBES.", "Activate MAIN TERMINAL." and "Go to LIFT.";
+3. the terminal asks for a callsign "for security clearance", from the keyboard, and then shows
+   its menu: duty logs, controls, logoff.
+
+The game's mouse area is 1280 by 480 (functions 7 and 8), so the player spreads the mouse's
+motion over that rather than the driver's usual 640 by 200.
 
 ## In the player
 
@@ -90,4 +108,4 @@ Still to come, probably:
 - the floating-point unit (*to confirm*: it hasn't come up yet);
 - VESA, for its 640 by 480 mode, which it manages without;
 - a much faster processor (step 11);
-- everything past the hangar, untried so far.
+- the talk, the briefing and the first mission, untried so far.

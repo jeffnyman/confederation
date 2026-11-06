@@ -66,6 +66,9 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
     plays its opening movie ([docs/the-cd.md](docs/the-cd.md)), once the Sound Blaster 16's 16-bit
     sound and the second DMA controller were in ([docs/the-sound.md](docs/the-sound.md)). The
     player knows it as `wc3`, from GOG's folder, and Esc after the movie reaches the hangar.
+    From there the mouse takes it about the carrier, once the mouse driver called the game's
+    own handler, through IRQ 12 and the second interrupt controller
+    ([docs/the-player.md](docs/the-player.md#the-mouse)).
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
 ## Later

@@ -15,6 +15,10 @@ public sealed partial class Machine
     private const ushort KeyboardHandler = 0x0510;
     private const ushort ConfigurationTable = 0x0540;
 
+    // the mouse driver's handler for IRQ 12, and where it keeps the program's event handler
+    private const ushort MouseHandler = 0x05A0;
+    private const ushort MouseEventHandler = 0x05E8;
+
     /// <summary>Four zero bytes in the BIOS area, for DOS's answers that point at an empty table.</summary>
     internal const ushort EmptyTable = 0x05F0;
 
@@ -50,15 +54,36 @@ public sealed partial class Machine
         }
 
         // the hardware interrupts: IRQ 0, the timer, counts the time of day and calls INT 1Ch,
-        // the hook programs are meant to use; the rest only end the interrupt
+        // the hook programs are meant to use; the rest only end the interrupt, on both
+        // controllers for the second's IRQs (8 to 15, vectors 70h to 77h)
         WriteRom(bios + TimerHandler, [0x0F, 0xFF, 0x08, 0xCD, 0x1C, 0xCF]);
         SetVector(0x08, BiosSegment, TimerHandler);
-        for (byte vector = 0x0A; vector <= 0x0F; vector++)
+        foreach (int vector in Enumerable.Range(0x0A, 6).Concat(Enumerable.Range(0x70, 8)))
         {
             ushort offset = (ushort)(StubBase + (4 * vector));
-            WriteRom(bios + offset, [0x0F, 0xFF, vector, 0xCF]);
+            WriteRom(bios + offset, [0x0F, 0xFF, (byte)vector, 0xCF]);
             SetVector(vector, BiosSegment, offset);
         }
+
+        // IRQ 12, the PS/2 mouse, as its driver answers it: the event goes to the program's
+        // handler, if it set one for it (INT 33h function 0Ch), with the program's registers kept
+        WriteRom(bios + MouseHandler,
+        [
+            0x1E,                   // push ds
+            0x06,                   // push es
+            0x66, 0x60,             // pushad
+            0x0F, 0xFF, MouseEventService,  // the event in the registers, or carry if no call
+            0x72, 0x05,             // jc done
+            0x2E, 0xFF, 0x1E, MouseEventHandler & 0xFF, MouseEventHandler >> 8,  // call far cs:[handler]
+            0xB0, 0x20,             // done: mov al,20h
+            0xE6, 0xA0,             // out 0A0h,al
+            0xE6, 0x20,             // out 20h,al
+            0x66, 0x61,             // popad
+            0x07,                   // pop es
+            0x1F,                   // pop ds
+            0xCF,                   // iret
+        ]);
+        SetVector(0x74, BiosSegment, MouseHandler);
 
         // IRQ 1, the keyboard, as an AT's BIOS has it: the scan code is offered to INT 15h
         // function 4Fh first, the "keyboard intercept", and only if that hands it back (carry

@@ -18,8 +18,8 @@ instructions. DOS, the BIOS, expanded memory, the timer, the VGA, the keyboard a
 port are answered well enough that *Wing Commander* plays in a window, by keyboard or gamepad,
 with its music on an emulated AdLib or, given Roland's ROMs, an MT-32. *Wing Commander II* speaks
 through an emulated Sound Blaster, and flies its first mission. *Wing Commander III* runs in
-protected mode from its CD image, plays its opening movie with its sound, and reaches its first
-screen. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+protected mode from its CD image, plays its opening movie with its sound, and goes about its
+carrier by mouse. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 ```
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
