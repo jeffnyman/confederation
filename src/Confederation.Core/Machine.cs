@@ -42,6 +42,7 @@ public sealed partial class Machine : ICpuBus
 
     private readonly byte[] _memory = new byte[MemorySize];
     private readonly ExpandedMemory _ems;
+    private readonly DosDrive _drive;
     private readonly DosServices _dos;
     private readonly DpmiHost _dpmi;
     private readonly InterruptController _pic = new();
@@ -70,7 +71,8 @@ public sealed partial class Machine : ICpuBus
         _timer.Reloaded0 += () => _nextIrq0 = _timer.Start0 + _timer.Period0;
         _keyboard.Interrupt += () => _pic.Raise(1);
         _ems = new ExpandedMemory(this);
-        _dos = new DosServices(this, new DosDrive(gameFolder, saveFolder));
+        _drive = new DosDrive(gameFolder, saveFolder);
+        _dos = new DosServices(this, _drive);
         _dpmi = new DpmiHost(this, _dos);
         InstallBios();
         _ems.Install();
@@ -87,10 +89,13 @@ public sealed partial class Machine : ICpuBus
     /// </summary>
     public Action<string>? Log { get; set; }
 
-    /// <summary>Whether the program has ended, by its DOS call or an <c>INT 20h</c>.</summary>
+    /// <summary>
+    /// Whether the program has ended, by its DOS call or an <c>INT 20h</c>; or, for a batch file,
+    /// whether the batch file has, after its last program.
+    /// </summary>
     public bool Exited { get; internal set; }
 
-    /// <summary>The program's exit code, once it has ended.</summary>
+    /// <summary>The program's exit code, once it has ended: for a batch file, its last program's.</summary>
     public int ExitCode { get; internal set; }
 
     /// <summary>The video mode the program last chose through the BIOS; 3, 80 by 25 text, at the start.</summary>
@@ -142,10 +147,28 @@ public sealed partial class Machine : ICpuBus
     public bool A20 { get; set; }
 
     /// <summary>
-    /// Loads a program from drive C: as DOS would, with a command tail, and readies the
-    /// processor to run it.
+    /// Puts a host folder on a directory of drive C:, read-only, as the game's folder is: what a
+    /// program writes there goes to the save folder. For a game whose data is expected beside
+    /// another program, as W.C.A.T. expects the game's beside its launcher, without copying it.
     /// </summary>
-    /// <param name="program">The program's name, as in <c>WC.EXE</c>.</param>
+    /// <param name="directory">The directory, from the root, as in <c>\GAMEWC1</c>.</param>
+    /// <param name="folder">The host folder that appears there.</param>
+    public void Mount(string directory, string folder)
+    {
+        if (_drive.Parse(directory.StartsWith('\\') ? directory : "\\" + directory) is not { Length: > 0 } parts)
+        {
+            throw new ArgumentException($"{directory} isn't a directory of drive C:.", nameof(directory));
+        }
+
+        _drive.Mount(parts, Path.GetFullPath(folder));
+    }
+
+    /// <summary>
+    /// Loads a program from drive C: as DOS would, with a command tail, and readies the
+    /// processor to run it. A batch file (<c>.BAT</c>) is run as COMMAND.COM would, program
+    /// after program, and the machine runs on until the batch file ends.
+    /// </summary>
+    /// <param name="program">The program's name, as in <c>WC.EXE</c>, or a batch file's.</param>
     /// <param name="arguments">What follows the program's name on the command line.</param>
     public void Load(string program, string arguments = "") => _dos.Load(program, arguments);
 
@@ -177,6 +200,13 @@ public sealed partial class Machine : ICpuBus
             {
                 Cpu.Step();
                 _time++;
+                if (_dos.BetweenPrograms)
+                {
+                    // the program ended inside a batch file: on to its next line, which
+                    // usually loads the next program over this one's stack and registers
+                    _dos.NextCommand();
+                    continue;
+                }
             }
 
             UpdateTimer();

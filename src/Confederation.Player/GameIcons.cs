@@ -26,6 +26,12 @@ internal static class GameIcons
     /// <summary>The icon for a game, as pictures at its sizes; the player's own for a program it doesn't know.</summary>
     public static IReadOnlyList<IconImage> For(Game game)
     {
+        // W.C.A.T. has its series' main game's icon
+        if (game.Overhaul is { } overhaul)
+        {
+            return Built(overhaul.Series.Key);
+        }
+
         // The Secret Missions run Wing Commander's own program, and share its icon
         var known = Games.Known.FirstOrDefault(known => string.Equals(known.Program, game.Program, StringComparison.OrdinalIgnoreCase));
         return known is null ? Confederation : Built(known.Name);

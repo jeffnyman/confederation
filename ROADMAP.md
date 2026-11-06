@@ -52,10 +52,11 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
      vectors and exception handlers), interrupts reflected down to DOS and the BIOS and brought
      back up, and 16 MB of memory; checked by small DPMI programs
      ([docs/the-dpmi-host.md](docs/the-dpmi-host.md)).
-   - **9c. W.C.A.T.'s launcher** to its screen: the first real protected-mode program. *Done*:
-     PMODE/W runs on the host and the launcher draws its screen and scans for the game. Still to
-     do: W.C.A.T.'s folders mounted as it lays them out (the game beside the launcher), and the
-     batch files it writes to start the game.
+   - **9c. W.C.A.T.** *Done.* Its launcher, the first real protected-mode program: PMODE/W runs
+     on the host, and the launcher draws its screen, installs its fixes and starts the game. The
+     game's own data mounted where W.C.A.T. expects it, beside the launcher, rather than copied;
+     and the batch files it starts the game with, run by a shell in C#
+     ([docs/wcat.md](docs/wcat.md)).
    - **9d. *Wing Commander III*** as far as it gets before it needs the CD.
 10. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.

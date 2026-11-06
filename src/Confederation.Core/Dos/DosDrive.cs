@@ -6,6 +6,12 @@ namespace Confederation.Core.Dos;
 /// is the file. Names are matched without regard to case, as DOS matches them, so the game's
 /// files can be in any case on the host.
 /// </summary>
+/// <remarks>
+/// Other folders can be mounted on directories of the drive, read-only as the game's folder is:
+/// W.C.A.T. expects the game's data in a directory beside its launcher, and the player puts the
+/// game's own folder there rather than copying it. A mounted folder comes before the game
+/// folder's directory of the same name, and the save folder before both.
+/// </remarks>
 internal sealed class DosDrive(string gameFolder, string saveFolder)
 {
     // the folders the drive was made with, which a saved state doesn't carry: a state goes
@@ -15,6 +21,10 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
 
     [NotSaved]
     private readonly string _saveFolder = saveFolder;
+
+    // folders mounted on directories, by the directory's components
+    [NotSaved]
+    private readonly List<(string[] At, string Folder)> _mounts = [];
 
     // files a program deleted that exist in the game's folder, which isn't changed
     private readonly HashSet<string> _deleted = new(StringComparer.OrdinalIgnoreCase);
@@ -67,6 +77,33 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
 
     public static string Join(string[] parts) => string.Join('\\', parts);
 
+
+    /// <summary>Mounts a host folder on a directory of the drive, read-only.</summary>
+    public void Mount(string[] at, string folder) => _mounts.Add((at, folder));
+
+    /// <summary>
+    /// The host paths a DOS path could be in, besides the save folder: in each folder mounted
+    /// on a directory it's under, then in the game's folder. Each may or may not exist.
+    /// </summary>
+    private IEnumerable<string> ReadOnly(string[] parts)
+    {
+        foreach (var (at, folder) in _mounts)
+        {
+            if (parts.Length >= at.Length && parts.AsSpan(0, at.Length).SequenceEqual(at, StringComparer.OrdinalIgnoreCase)
+                && Find(folder, parts[at.Length..]) is { } mounted)
+            {
+                yield return mounted;
+            }
+        }
+
+        if (Find(_gameFolder, parts) is { } original)
+        {
+            yield return original;
+        }
+    }
+
+    private string? ReadOnlyFile(string[] parts) => ReadOnly(parts).FirstOrDefault(File.Exists);
+
     /// <summary>The host file a DOS path names, the save folder's copy first; null if there's none.</summary>
     public string? FindFile(string[] parts)
     {
@@ -85,13 +122,14 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             return null;
         }
 
-        return Find(_gameFolder, parts) is { } original && File.Exists(original) ? original : null;
+        return ReadOnlyFile(parts);
     }
 
     public bool DirectoryExists(string[] parts) =>
         parts.Length == 0 ||
         Find(_saveFolder, parts) is { } saved && Directory.Exists(saved) ||
-        Find(_gameFolder, parts) is { } original && Directory.Exists(original);
+        ReadOnly(parts).Any(Directory.Exists) ||
+        _mounts.Any(mount => mount.At.Length >= parts.Length && mount.At.AsSpan(0, parts.Length).SequenceEqual(parts, StringComparer.OrdinalIgnoreCase));
 
     /// <summary>
     /// The host path to write a DOS path to, in the save folder, creating its directories. With
@@ -130,7 +168,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             File.Delete(file);
         }
 
-        if (Find(_gameFolder, parts) is { } original && File.Exists(original))
+        if (ReadOnlyFile(parts) is not null)
         {
             _deleted.Add(Join(parts));
         }
@@ -149,13 +187,14 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
         return true;
     }
 
-    /// <summary>The entries of a directory, from both folders, the save folder's taking precedence.</summary>
+    /// <summary>The entries of a directory, from every folder, the save folder's taking precedence.</summary>
     public IEnumerable<FileSystemInfo> List(string[] directory)
     {
         var seen = new Dictionary<string, FileSystemInfo>(StringComparer.OrdinalIgnoreCase);
-        foreach (var root in new[] { _saveFolder, _gameFolder })
+        var saved = Find(_saveFolder, directory);
+        foreach (var (host, original) in new[] { (saved, false) }.Concat(ReadOnly(directory).Select(path => ((string?)path, true))))
         {
-            if ((directory.Length == 0 ? root : Find(root, directory)) is not { } host || !Directory.Exists(host))
+            if (host is null || !Directory.Exists(host))
             {
                 continue;
             }
@@ -163,7 +202,7 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
             foreach (var entry in new DirectoryInfo(host).EnumerateFileSystemInfos())
             {
                 string name = entry.Name.ToUpperInvariant();
-                if (root == _gameFolder && _deleted.Contains(Join([.. directory, name])))
+                if (original && _deleted.Contains(Join([.. directory, name])))
                 {
                     continue;
                 }

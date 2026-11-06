@@ -179,7 +179,7 @@ After those, the launcher reaches its screen: "Welcome to WING COMMANDER A.T. Pe
 setup... Scanning game files...". It then reports `..\GAMEWC1` missing, which is right for now:
 Confederation mounted the launcher's own folder as drive C:, and W.C.A.T. keeps the game in the
 folder beside it. Mounting its folders as it lays them out, and running the batch files it writes,
-are the next step.
+came next ([W.C.A.T.](wcat.md)).
 
 ## Checking it
 

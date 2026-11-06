@@ -283,7 +283,7 @@ public sealed class DosTests : IDisposable
     /// An MZ executable around code that starts at its first byte: a two-paragraph header, no
     /// relocations, and a stack at the top of a 64 KB segment of its own.
     /// </summary>
-    private static byte[] Exe(byte[] code)
+    internal static byte[] Exe(byte[] code)
     {
         int total = 32 + code.Length;
         var exe = new byte[total];

@@ -53,5 +53,8 @@ games.
     why Confederation offers one, a host that switches modes by saving and restoring the
     processor rather than running code, the three paths an interrupt can take, and what W.C.A.T.'s
     launcher needed on its way to its first screen.
+14. [W.C.A.T.](wcat.md): a fan overhaul played through its own launcher, the game's data mounted
+    where it expects it rather than copied, and batch files run by a shell in C# between
+    programs, as DOSBox runs them, rather than by COMMAND.COM.
 
 More notes will follow as the work does, and each game as it comes up.

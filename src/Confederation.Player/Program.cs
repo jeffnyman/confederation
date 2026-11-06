@@ -275,6 +275,9 @@ internal static class Program
             settings.Save();
         }
 
+        // W.C.A.T. without a copy of the game's data: the series' own folder, where it looks
+        string? overhaulData = Games.OverhaulData(game, settings);
+
         bool sound = profile.Sound ?? true;
         saves ??= Games.SaveFolder(game);
         Directory.CreateDirectory(saves);
@@ -286,6 +289,12 @@ internal static class Program
             Log = log is null ? null : log.WriteLine,
             Mouse = (profile.Mouse ?? true) && !headless,
         };
+        if (overhaulData is not null)
+        {
+            machine.Mount(game.Overhaul!.GameDirectory, overhaulData);
+            Console.WriteLine($"confederation: {game.Overhaul.Series.Title}'s data from {overhaulData}, as C:\\{game.Overhaul.GameDirectory} (read only)");
+        }
+
         if (profile.Music is { } music)
         {
             Games.SetMusic(game, saves, music);
@@ -427,8 +436,10 @@ internal static class Program
                                  Secret Missions), wc2, so1 or so2 (Wing Commander II and its
                                  Special Operations); or its folder, or its program. A folder
                                  given once is remembered, so the short names find it after.
-                                 With no game, a menu in a window lists them.
-              [program]          another program in the folder, such as SM2.EXE or SO1.EXE
+                                 Or W.C.A.T.'s folder, which runs its launcher, with the series
+                                 set up for its data. With no game, a menu in a window lists them.
+              [program]          another program in the folder, such as SM2.EXE or SO1.EXE, or
+                                 one of W.C.A.T.'s batch files, such as WC.BAT
 
             options:
               --list             what's set up: each game's folder, and how it's played

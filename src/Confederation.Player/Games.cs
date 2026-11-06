@@ -20,10 +20,21 @@ internal sealed record Series(string Key, string Title, string MainProgram, stri
 internal sealed record KnownGame(string Name, Series Series, string Program, string Title, string? Note = null);
 
 /// <summary>
-/// A game to play: its folder, the program in it to run, how fast to run it, and the series it's
-/// part of (null for a program the player doesn't know).
+/// W.C.A.T., AllTinker's overhaul of a series: a launcher of its own, beside a directory it
+/// expects the game's data in, which it installs its fixes over and starts the game from, by
+/// batch files.
 /// </summary>
-internal sealed record Game(string Folder, string Program, string Title, int Cycles, Series? Series)
+/// <param name="Title">Its title.</param>
+/// <param name="Series">The series it overhauls, whose data it needs.</param>
+/// <param name="GameDirectory">The directory beside its launcher the game's data goes in.</param>
+internal sealed record Overhaul(string Title, Series Series, string GameDirectory);
+
+/// <summary>
+/// A game to play: its folder, the program in it to run, how fast to run it, and the series it's
+/// part of (null for a program the player doesn't know, and for W.C.A.T., which is played
+/// through its own launcher and its own settings rather than the series').
+/// </summary>
+internal sealed record Game(string Folder, string Program, string Title, int Cycles, Series? Series, Overhaul? Overhaul = null)
 {
     /// <summary>The file its installer chose its devices in.</summary>
     public string? Config => Series?.Config;
@@ -73,6 +84,27 @@ internal static class Games
         new("so2", Wc2, "SO2.EXE", "Wing Commander II: Special Operations 2"),
     ];
 
+    /// <summary>W.C.A.T. for each series, found by the directory its launcher expects the game in.</summary>
+    public static readonly Overhaul[] Overhauls =
+    [
+        new("Wing Commander: AllTinker Overhaul", Wc1, "GAMEWC1"),
+        new("Wing Commander II: AllTinker Overhaul", Wc2, "GAMEWC2"),
+    ];
+
+    /// <summary>
+    /// W.C.A.T.'s speed, as its own DOSBox settings set it: 22,000 cycles, "a modest default so
+    /// audio wouldn't skip on lower-end PCs". It limits the game's speed itself, by the display's
+    /// vertical blank, so more does no harm.
+    /// </summary>
+    public const int OverhaulCycles = 22000;
+
+    /// <summary>
+    /// The batch file W.C.A.T.'s own DOSBox setup runs: its launcher, and then whatever it was
+    /// told to start. Its others (<c>WC.BAT</c>, <c>SM2.BAT</c>, <c>WC2.BAT</c> and so on) start a
+    /// game straight away once the launcher has been set up.
+    /// </summary>
+    public const string OverhaulProgram = "WCAT.BAT";
+
     /// <summary>The game with a short name, or null.</summary>
     public static KnownGame? Named(string name)
         => Known.FirstOrDefault(game => string.Equals(game.Name, name, StringComparison.OrdinalIgnoreCase));
@@ -113,6 +145,14 @@ internal static class Games
             throw new FileNotFoundException($"no game at {path}");
         }
 
+        if (OverhaulIn(folder) is var (files, overhaul))
+        {
+            program ??= OverhaulProgram;
+            return FileIn(files, program) is null
+                ? throw new FileNotFoundException($"no {program} in {files}")
+                : new Game(files, program.ToUpperInvariant(), overhaul.Title, OverhaulCycles, null, overhaul);
+        }
+
         if (program is null)
         {
             // the main games first, before their mission disks
@@ -129,6 +169,51 @@ internal static class Games
         return known is null
             ? new Game(folder, program.ToUpperInvariant(), Path.GetFileNameWithoutExtension(program).ToUpperInvariant(), 4000, null)
             : new Game(folder, known.Program, known.Title, known.Series.Cycles, known.Series);
+    }
+
+    /// <summary>
+    /// W.C.A.T. in a folder: the folder its batch files are in (its <c>files</c>, which W.C.A.T.'s
+    /// DOSBox setup mounts as C:, or the folder itself), and which series it overhauls. Null
+    /// when there's no W.C.A.T. there.
+    /// </summary>
+    public static (string Files, Overhaul Overhaul)? OverhaulIn(string folder)
+    {
+        foreach (string files in new[] { folder, Path.Combine(folder, "files") })
+        {
+            if (!Directory.Exists(files)
+                || DirectoryIn(files, "LAUNCHER") is not { } launcher
+                || FileIn(launcher, "LAUNCHER.EXE") is null)
+            {
+                continue;
+            }
+
+            if (Overhauls.FirstOrDefault(overhaul => DirectoryIn(files, overhaul.GameDirectory) is not null) is { } found)
+            {
+                return (Path.GetFullPath(files), found);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where W.C.A.T. finds the game's data, when the player is to provide it: the series' own
+    /// folder's <c>GAMEDAT</c>, which W.C.A.T. asks for a copy of, or the folder itself when the
+    /// data is there. Null when its directory already holds a copy, which is then used as it is.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">There's no copy, and the series isn't set up.</exception>
+    public static string? OverhaulData(Game game, Settings settings)
+    {
+        if (game.Overhaul is not { } overhaul
+            || DirectoryIn(game.Folder, overhaul.GameDirectory) is { } copy && Directory.EnumerateFiles(copy).Any())
+        {
+            return null;
+        }
+
+        string folder = settings.FolderOf(overhaul.Series)
+            ?? throw new FileNotFoundException(
+                $"{overhaul.Title} needs {overhaul.Series.Title}'s data: set it up first (confederation \"<its folder>\"), or copy its GAMEDAT into {overhaul.GameDirectory}");
+        return DirectoryIn(folder, "GAMEDAT") ?? folder;
     }
 
     /// <summary>
@@ -178,7 +263,11 @@ internal static class Games
     /// </summary>
     public static string SaveFolder(Game game)
     {
-        string name = string.Concat(Path.GetFileName(game.Folder).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+        // W.C.A.T.'s batch files are in its "files", so its saves are named for the folder that's in
+        string folder = game.Overhaul is not null && string.Equals(Path.GetFileName(game.Folder), "files", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetDirectoryName(game.Folder)!
+            : game.Folder;
+        string name = string.Concat(Path.GetFileName(folder).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
         return Path.Combine(Home, "saves", name);
     }
 
@@ -256,5 +345,11 @@ internal static class Games
     private static string? FileIn(string folder, string name)
         => Directory.Exists(folder)
             ? Directory.EnumerateFiles(folder).FirstOrDefault(file => string.Equals(Path.GetFileName(file), name, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    // a folder in a folder, whatever its case
+    private static string? DirectoryIn(string folder, string name)
+        => Directory.Exists(folder)
+            ? Directory.EnumerateDirectories(folder).FirstOrDefault(directory => string.Equals(Path.GetFileName(directory), name, StringComparison.OrdinalIgnoreCase))
             : null;
 }

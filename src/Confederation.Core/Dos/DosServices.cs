@@ -31,11 +31,58 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
 
     // ---- loading a program -------------------------------------------------------------------
 
+    // the batch files being run, made when the first is
+    private CommandShell? _shell;
+
+    // a program has ended while a batch file runs: the next line is to be run
+    private bool _betweenPrograms;
+
+    /// <summary>
+    /// Loads a program from drive C:, or starts a batch file, which loads the first program it
+    /// names. When a batch file runs none, the machine has ended before it started.
+    /// </summary>
     public void Load(string program, string arguments)
+    {
+        string[] parts = drive.Parse(program) ?? throw new FileNotFoundException(program);
+        if (drive.FindFile(parts) is null)
+        {
+            throw new FileNotFoundException($"{program} isn't on drive C:.", program);
+        }
+
+        if (parts[^1].EndsWith(".BAT", StringComparison.Ordinal))
+        {
+            _shell ??= new CommandShell(this, drive, machine);
+            _shell.Start(parts, arguments);
+            NextCommand();
+            return;
+        }
+
+        LoadProgram(parts, arguments);
+    }
+
+    /// <summary>Whether a program has ended and a batch file has more lines to run.</summary>
+    internal bool BetweenPrograms => _betweenPrograms;
+
+    /// <summary>
+    /// Runs the batch file on, to the next program it starts; when there's none, the machine has
+    /// ended, with the last program's exit code.
+    /// </summary>
+    internal void NextCommand()
+    {
+        _betweenPrograms = false;
+        if (_shell?.Continue() != true)
+        {
+            FlushConsole();
+            machine.Exited = true;
+        }
+    }
+
+    /// <summary>Loads a program by its path on drive C:, and readies the processor to run it.</summary>
+    internal void LoadProgram(string[] parts, string arguments)
     {
         InitializeArena();
 
-        string[] parts = drive.Parse(program) ?? throw new FileNotFoundException(program);
+        string program = DosDrive.Join(parts);
         string file = drive.FindFile(parts) ?? throw new FileNotFoundException($"{program} isn't on drive C:.", program);
         byte[] image = File.ReadAllBytes(file);
         string dosPath = "C:\\" + DosDrive.Join(parts);
@@ -158,13 +205,26 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
         machine.WriteBytes(psp, 0x81, [.. Encoding.ASCII.GetBytes(tail), 0x0D]);
     }
 
+    /// <summary>
+    /// Ends the program, as DOS does: its files are closed and its memory freed (the next
+    /// program starts the arena afresh). With a batch file running, the machine runs on to its
+    /// next line; otherwise it has ended.
+    /// </summary>
     public void Terminate(int code)
     {
         FlushConsole();
+        CloseProgramFiles();
         machine.ExitCode = code;
-        machine.Exited = true;
         machine.ProgramEnded();
         machine.Trace($"exit {code}");
+        if (_shell?.Running == true)
+        {
+            _betweenPrograms = true;
+        }
+        else
+        {
+            machine.Exited = true;
+        }
     }
 
     // ---- the memory arena --------------------------------------------------------------------
@@ -636,6 +696,17 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
         }
 
         return character;
+    }
+
+    /// <summary>A line on the console, from the shell.</summary>
+    internal void ConsoleLine(string text)
+    {
+        foreach (char c in text)
+        {
+            ConsoleOut(c);
+        }
+
+        ConsoleOut('\n');
     }
 
     private void ConsoleOut(char c)

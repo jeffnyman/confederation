@@ -123,6 +123,10 @@ Commander* opens every data file in read/write mode, `COCKPIT.VGA` and its sound
 and writes none of them. Copying on open would have filled the save folder with game data. The
 start-up test checks that the folder is still empty when the game reaches its first screen.
 
+Other folders can be **mounted** on directories of C:, read-only like the game's folder and under
+the save folder. W.C.A.T. expects the game's data in a directory beside its launcher, and the
+player puts the series' own folder there instead of a copy ([W.C.A.T.](wcat.md)).
+
 ## Expanded memory
 
 640 KB wasn't enough for games by 1990. Expanded memory (EMS, the LIM specification) was one way

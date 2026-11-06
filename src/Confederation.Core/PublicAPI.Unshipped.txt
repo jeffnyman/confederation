@@ -100,3 +100,4 @@ Confederation.Core.Machine.ReleaseKeys() -> void
 Confederation.Core.Machine.SaveState(System.IO.Stream! stream) -> void
 Confederation.Core.Machine.LoadState(System.IO.Stream! stream) -> void
 Confederation.Core.Processors.Intel386.ProtectedMode.get -> bool
+Confederation.Core.Machine.Mount(string! directory, string! folder) -> void

@@ -17,7 +17,7 @@ emulator runs.
 | `_wingc/Wing Commander II` | *Wing Commander II: Vengeance of the Kilrathi* (1991) with *Special Operations* 1 and 2. GOG release. | DOSBox, `loadfix -32 wc2.exe` (or `so1.exe`, `so2.exe`) |
 | `_wingc/Wing Commander III - Heart of the Tiger` | *Wing Commander III* (1994). GOG release. | DOSBox, `imgmount D "..\DATA.DAT" -t iso`, then `wc3.exe` from `D:` |
 | `_wingc/WC-Kilrathi-Saga` | *The Kilrathi Saga* (1996), the Windows 95 re-release of the first three games, as five ISOs | Out of scope |
-| `_wingc/W.C.A.T. ...` | *W.C.A.T.*, a fan overhaul mod for WC1 and WC2, packaged with DOSBox Staging | A reference, and a possible later target |
+| `_wingc/W.C.A.T. ...` | *W.C.A.T.*, a fan overhaul mod for WC1 and WC2, packaged with DOSBox Staging | Played through its own launcher ([W.C.A.T.](wcat.md)) |
 
 ## *Wing Commander* and *Wing Commander II*
 

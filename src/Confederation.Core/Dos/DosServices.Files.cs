@@ -55,6 +55,18 @@ internal sealed partial class DosServices
         }
     }
 
+    /// <summary>Closes the files a program left open when it ends, as DOS does; the devices stay.</summary>
+    private void CloseProgramFiles()
+    {
+        foreach (int handle in _files.Keys.Where(handle => handle >= FirstFileHandle).ToList())
+        {
+            _files[handle].Stream?.Dispose();
+            _files.Remove(handle);
+        }
+
+        _searches.Clear();
+    }
+
     private void PrepareToWrite(OpenFile file)
     {
         if (file.Copied || file.Parts is null || file.Stream is not { } stream)
@@ -515,7 +527,7 @@ internal sealed partial class DosServices
     /// Whether a name matches a DOS wildcard pattern, the name part and extension apart: "?"
     /// matches any one character, "*" the rest of its part.
     /// </summary>
-    private static bool Matches(string name, string pattern)
+    internal static bool Matches(string name, string pattern)
     {
         static (string Name, string Extension) Split(string s)
         {
