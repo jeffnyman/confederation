@@ -89,7 +89,9 @@ from IRQ 12 and the second interrupt controller ([the player](the-player.md#the-
 pointer moves, and (observed, by a scripted mouse):
 
 1. at the foot of the hangar's screen it says "Go to FLIGHT CONTROL.", and a click plays the
-   walk there, then shows the room;
+   walk there, then shows the room. It's the hangar's only way on, and only at the very bottom
+   edge of the screen, so it's easy to miss: in the window, the hangar can look as if nothing
+   can be clicked (observed by playing);
 2. in flight control, "Talk to HOBBES.", "Activate MAIN TERMINAL." and "Go to LIFT.";
 3. the terminal asks for a callsign "for security clearance", from the keyboard, and then shows
    its menu: duty logs, controls, logoff.
@@ -114,7 +116,9 @@ game goes on to its first mission (observed, by a scripted mouse, at 30,000 cycl
    flying out of the bay is for a player.
 
 The simulator ("Run SIMULATOR.") offers ten training missions, and the first flies: the HUD, the
-radar and "FLY TO WAY AREA", at about 24 frames a second, without the cockpit's picture.
+radar and "FLY TO WAY AREA", at about 24 frames a second, without the cockpit's picture. Played
+in the window at 30,000 cycles, a simulator mission flies at a speed that feels fine (observed by
+playing).
 
 The game never needed a floating-point unit. Its coprocessor instructions are no-ops here, as on
 a 386 without one, and it flies without them.

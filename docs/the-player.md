@@ -43,8 +43,9 @@ leaves room for the window and the sound.
 Its movies keep time by their sound, so they play in step whatever the speed (observed at 20,000,
 30,000 and 40,000). Its space flight runs at about 24 frames a second in empty space at both
 30,000 and 40,000, so there the game sets its own pace; in the carrier's launch bay it's about 21
-(observed, headless). How it fares in a dogfight is to confirm by playing; making the processor
-faster is [roadmap step 11](../ROADMAP.md).
+(observed, headless). Played in the window, a simulator mission at 30,000 keeps up, with the
+movies and sound alongside (observed by playing). How a real mission's dogfights fare is still to
+confirm; making the processor faster is [roadmap step 11](../ROADMAP.md).
 
 Why not "as fast as possible"? These games time some things by the timer and others by how fast
 the processor runs. *Wing Commander* came out in 1990, for the 286s and early 386s of the day, and
