@@ -64,15 +64,23 @@ there's room to spare. F12 lets it run flat out, to get past things quickly.
 
 ## The picture
 
-The window draws the machine's 32-bit picture to an SDL surface and scales it onto the window,
-with no GPU renderer, as Retrograde does. Two details are particular to the PC:
+The window draws the machine's 32-bit picture into an SDL texture, and SDL's renderer scales it
+onto the window, on the graphics card where there is one, with the nearest pixel so it stays
+sharp. Two details are particular to the PC:
 
 - **The shape.** Mode 13h is 320 by 200, but monitors were 4:3, so each pixel was 1.2 times taller
   than wide. The player shows the picture at 4:3 whatever its size in pixels. Shift+F11 shows
   square pixels instead, as most screenshots of these games do (the test screenshots included),
   which is why they look flatter than people remember the games.
-- **The size changes** with the mode: text, then 320 by 200. The surface follows the size the
+- **The size changes** with the mode: text, then 320 by 200. The texture follows the size the
   machine reports.
+
+At first the player scaled the picture in software onto the window's own surface, as Retrograde
+does. A C64's picture is small, and so was the window, but full screen on a large monitor is
+millions of pixels seventy times a second. **Observed:** on a high-resolution screen, a frame
+took 19 ms to draw, in a frame of 14.3 ms. The sound is queued a frame at a time, so it ran dry between frames
+and crackled, in full screen only. Through the renderer the same frame takes a quarter of a
+millisecond.
 
 ## The keyboard
 

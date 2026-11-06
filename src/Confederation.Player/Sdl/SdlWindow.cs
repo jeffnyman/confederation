@@ -4,14 +4,21 @@ using static SDL.SDL3;
 namespace Confederation.Player.Sdl;
 
 /// <summary>
-/// The window: the machine's picture in an SDL surface of 32-bit pixels, scaled onto the window's
-/// surface. No GPU renderer is involved, which keeps the path simple and exact. The window can be
-/// resized and switched to full screen; the picture keeps its shape, centred with black around it.
+/// The window: the machine's picture in a texture of 32-bit pixels, which SDL's renderer scales
+/// onto the window, on the graphics card where there is one. The window can be resized and
+/// switched to full screen; the picture keeps its shape, centred with black around it.
 /// </summary>
 /// <remarks>
 /// The VGA's 320 by 200 filled a 4:3 monitor, so its pixels were 1.2 times as tall as they were
 /// wide; the picture is shown at 4:3 whatever its size in pixels, unless square pixels are asked
-/// for. The size can change as the game changes mode, and the surface follows it.
+/// for. The size can change as the game changes mode, and the texture follows it.
+/// <para>
+/// The picture was once scaled in software, onto the window's own surface. That was simple and
+/// exact, but a full screen is millions of pixels to fill seventy times a second: on a large
+/// screen a frame took longer to draw than it lasts, the sound ran dry between frames, and
+/// crackled. The renderer scales with the nearest pixel, as the software did, so the picture is
+/// the same.
+/// </para>
 /// </remarks>
 internal sealed unsafe class SdlWindow : IDisposable
 {
@@ -19,7 +26,8 @@ internal sealed unsafe class SdlWindow : IDisposable
 
     private readonly string _title;
     private SDL_Window* _window;
-    private SDL_Surface* _frame;
+    private SDL_Renderer* _renderer;
+    private SDL_Texture* _frame;
     private int _width, _height;
 
     public SdlWindow(string title, int scale, bool fullscreen, bool squarePixels)
@@ -37,6 +45,9 @@ internal sealed unsafe class SdlWindow : IDisposable
         int height = squarePixels ? 200 * scale : (int)(320 * scale / MonitorAspect);
         _window = SdlException.ThrowIfNull(SDL_CreateWindow(title, 320 * scale, height, flags), "SDL_CreateWindow");
         SdlException.ThrowIfFalse(SDL_SetWindowMinimumSize(_window, 320, 200), "SDL_SetWindowMinimumSize");
+
+        // the best the system has; SDL falls back on its own software renderer
+        _renderer = SdlException.ThrowIfNull(SDL_CreateRenderer(_window, (string?)null), "SDL_CreateRenderer");
         Resize(320, 200);
     }
 
@@ -45,9 +56,12 @@ internal sealed unsafe class SdlWindow : IDisposable
     /// <summary>Shows the picture's pixels square, rather than in the 4:3 shape a monitor gave them.</summary>
     public bool SquarePixels { get; private set; }
 
+    /// <summary>Whether the mouse is the game's: hidden, held in the window, and read as motion rather than a place.</summary>
+    public bool MouseCaptured { get; private set; }
+
     /// <summary>
     /// Copies a picture into the window: <paramref name="width"/> by <paramref name="height"/>
-    /// pixels of ARGB, row by row, drawn by <paramref name="render"/> straight into the surface.
+    /// pixels of ARGB, row by row, drawn by <paramref name="render"/> straight into the texture.
     /// </summary>
     public void Present(int width, int height, RenderAction render)
     {
@@ -56,12 +70,14 @@ internal sealed unsafe class SdlWindow : IDisposable
             Resize(width, height);
         }
 
-        SdlException.ThrowIfFalse(SDL_LockSurface(_frame), "SDL_LockSurface");
+        nint pixelsAt;
+        int pitchBytes;
+        SdlException.ThrowIfFalse(SDL_LockTexture(_frame, null, &pixelsAt, &pitchBytes), "SDL_LockTexture");
         try
         {
-            // the surface's rows can be padded; the machine draws unpadded rows, so pad them here
-            int pitch = _frame->pitch / sizeof(uint);
-            var pixels = new Span<uint>((void*)_frame->pixels, pitch * height);
+            // the texture's rows can be padded; the machine draws unpadded rows, so pad them here
+            int pitch = pitchBytes / sizeof(uint);
+            var pixels = new Span<uint>((void*)pixelsAt, pitch * height);
             if (pitch == width)
             {
                 render(pixels[..(width * height)]);
@@ -70,7 +86,7 @@ internal sealed unsafe class SdlWindow : IDisposable
             {
                 uint[] rows = new uint[width * height];
                 render(rows);
-                for (int y = height - 1; y >= 0; y--)
+                for (int y = 0; y < height; y++)
                 {
                     rows.AsSpan(y * width, width).CopyTo(pixels.Slice(y * pitch, width));
                 }
@@ -78,7 +94,7 @@ internal sealed unsafe class SdlWindow : IDisposable
         }
         finally
         {
-            SDL_UnlockSurface(_frame);
+            SDL_UnlockTexture(_frame);
         }
 
         Redraw();
@@ -87,23 +103,18 @@ internal sealed unsafe class SdlWindow : IDisposable
     /// <summary>Paints the last picture onto the window again, scaled to fit.</summary>
     public void Redraw()
     {
-        var windowSurface = SDL_GetWindowSurface(_window);
-        if (windowSurface is null)
+        int windowWidth, windowHeight;
+        if (!SDL_GetCurrentRenderOutputSize(_renderer, &windowWidth, &windowHeight) || windowWidth <= 0 || windowHeight <= 0)
         {
             // minimized, on some systems
             return;
         }
 
-        var target = Fit(windowSurface->w, windowSurface->h);
-        if (target.x > 0 || target.y > 0)
-        {
-            SdlException.ThrowIfFalse(SDL_FillSurfaceRect(windowSurface, null, SDL_MapSurfaceRGB(windowSurface, 0, 0, 0)), "SDL_FillSurfaceRect");
-        }
-
-        SdlException.ThrowIfFalse(
-            SDL_BlitSurfaceScaled(_frame, null, windowSurface, &target, SDL_ScaleMode.SDL_SCALEMODE_NEAREST),
-            "SDL_BlitSurfaceScaled");
-        SdlException.ThrowIfFalse(SDL_UpdateWindowSurface(_window), "SDL_UpdateWindowSurface");
+        var target = Fit(windowWidth, windowHeight);
+        SDL_SetRenderDrawColor(_renderer, 0, 0, 0, 255);
+        SDL_RenderClear(_renderer);
+        SdlException.ThrowIfFalse(SDL_RenderTexture(_renderer, _frame, null, &target), "SDL_RenderTexture");
+        SDL_RenderPresent(_renderer);
     }
 
     /// <summary>Switches between a window and the full screen.</summary>
@@ -116,10 +127,6 @@ internal sealed unsafe class SdlWindow : IDisposable
         Redraw();
     }
 
-    /// <summary>Shows a short status, such as "paused", after the title in the title bar; null clears it.</summary>
-    /// <summary>Whether the mouse is the game's: hidden, held in the window, and read as motion rather than a place.</summary>
-    public bool MouseCaptured { get; private set; }
-
     /// <summary>Gives the mouse to the game, or back to the desktop.</summary>
     public void CaptureMouse(bool capture)
     {
@@ -129,14 +136,21 @@ internal sealed unsafe class SdlWindow : IDisposable
         }
     }
 
+    /// <summary>Shows a short status, such as "paused", after the title in the title bar; null clears it.</summary>
     public void ShowStatus(string? status) => SDL_SetWindowTitle(_window, status is null ? _title : $"{_title}  ({status})");
 
     public void Dispose()
     {
         if (_frame is not null)
         {
-            SDL_DestroySurface(_frame);
+            SDL_DestroyTexture(_frame);
             _frame = null;
+        }
+
+        if (_renderer is not null)
+        {
+            SDL_DestroyRenderer(_renderer);
+            _renderer = null;
         }
 
         if (_window is not null)
@@ -150,22 +164,25 @@ internal sealed unsafe class SdlWindow : IDisposable
     {
         if (_frame is not null)
         {
-            SDL_DestroySurface(_frame);
+            SDL_DestroyTexture(_frame);
         }
 
-        _frame = SdlException.ThrowIfNull(SDL_CreateSurface(width, height, SDL_PixelFormat.SDL_PIXELFORMAT_ARGB8888), "SDL_CreateSurface");
+        _frame = SdlException.ThrowIfNull(
+            SDL_CreateTexture(_renderer, SDL_PixelFormat.SDL_PIXELFORMAT_ARGB8888, SDL_TextureAccess.SDL_TEXTUREACCESS_STREAMING, width, height),
+            "SDL_CreateTexture");
+        SdlException.ThrowIfFalse(SDL_SetTextureScaleMode(_frame, SDL_ScaleMode.SDL_SCALEMODE_NEAREST), "SDL_SetTextureScaleMode");
         _width = width;
         _height = height;
     }
 
     /// <summary>The largest rectangle of the picture's shape that fits the window, centred.</summary>
-    private SDL_Rect Fit(int windowWidth, int windowHeight)
+    private SDL_FRect Fit(int windowWidth, int windowHeight)
     {
         float aspect = SquarePixels ? (float)_width / _height : MonitorAspect;
         float scale = Math.Min(windowWidth / aspect, windowHeight);
         int w = Math.Max(1, (int)(aspect * scale));
         int h = Math.Max(1, (int)scale);
-        return new SDL_Rect { x = (windowWidth - w) / 2, y = (windowHeight - h) / 2, w = w, h = h };
+        return new SDL_FRect { x = (windowWidth - w) / 2, y = (windowHeight - h) / 2, w = w, h = h };
     }
 }
 
