@@ -292,6 +292,23 @@ public sealed class DosTests : IDisposable
     }
 
     [Fact]
+    public void A_repeated_string_instruction_takes_time_for_each_repetition()
+    {
+        // mov ax, 9000h; mov es, ax; xor di, di; mov cx, 4000; rep stosb; mov ah, 4Ch; int 21h:
+        // a few instructions, but 4,000 repetitions, each a step of time, as DOSBox counts them
+        File.WriteAllBytes(Path.Combine(_game, "TEST.EXE"), Exe(
+            [0xB8, 0x00, 0x90, 0x8E, 0xC0, 0x31, 0xFF, 0xB9, 0xA0, 0x0F, 0xF3, 0xAA, 0xB4, 0x4C, 0xCD, 0x21]));
+        var machine = new Machine(_game, _saves) { Log = _log.Add };
+        machine.Load("TEST.EXE");
+        machine.Run(2_000);
+        Assert.False(machine.Exited);
+
+        machine.Run(3_000);
+        Assert.True(machine.Exited, string.Join('\n', _log));
+        Assert.Equal(4000u, machine.Cpu.Edi & 0xFFFF);
+    }
+
+    [Fact]
     public void The_second_interrupt_controller_lets_only_the_mouse_through()
     {
         // in al, 0A1h; mov ah, 4Ch; int 21h: its mask, with only IRQ 12's bit, 4, clear

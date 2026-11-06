@@ -112,7 +112,9 @@ public sealed class GameStartTests : IDisposable
             return;
         }
 
-        var machine = new Machine(folder, _saves) { Log = _log.Add };
+        // at GOG's speed for the game, 8,000 cycles: since a repeated string instruction takes
+        // time for each repetition, as in DOSBox, the default 4,000 loads the speech too slowly
+        var machine = new Machine(folder, _saves) { Log = _log.Add, InstructionsPerSecond = 8_000_000 };
         machine.Load("WC2.EXE");
 
         void Press(byte code, double seconds)

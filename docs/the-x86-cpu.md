@@ -127,6 +127,15 @@ Some design choices worth knowing:
 - **Faults are restartable.** The handler gets the address of the faulting instruction, prefixes
   included, and the stack as it was. A `REP` instruction that faults partway keeps the progress
   it made in CX, SI and DI, as on the chip.
+- **A `REP` takes time for each repetition, and gives way to interrupts.** The machine's clock
+  counts instructions, and at first a whole `REP MOVSD` counted as one, however many thousand
+  times it repeated. DOSBox charges a cycle for each repetition (its core's `string.h`), and GOG's
+  speeds are set by DOSBox's cycles, so the processor now counts its repetitions
+  (`Repetitions`) and the machine adds them to its time. It also stops a long one after 1,024
+  repetitions (`RepeatLimit`), with the instruction pointer left on the instruction and CX
+  counting what's left, so the next step carries on with it, and an interrupt can come in
+  between, as on the chip. The single-step tests run the processor without a limit, a whole
+  `REP` to a step, as the chip they were captured from reports it.
 
 Hardware interrupts arrive between instructions through `Interrupt(vector)`, which the machine
 calls when its interrupt controller has one and the interrupt flag is set (see

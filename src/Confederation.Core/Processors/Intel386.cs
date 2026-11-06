@@ -181,6 +181,21 @@ public sealed partial class Intel386
     public long Instructions { get; private set; }
 
     /// <summary>
+    /// The times repeated string instructions (<c>REP MOVS</c> and the rest) have repeated, each
+    /// a step of the instruction's own. A machine counts them into its time, as DOSBox does: a
+    /// <c>REP MOVSD</c> copying a screen is tens of thousands of steps on the chip, not one.
+    /// </summary>
+    internal long Repetitions { get; private set; }
+
+    /// <summary>
+    /// How many times a repeated string instruction repeats in one <see cref="Step"/> before it
+    /// lets the next instruction step, interrupts included, come first; 0 for no limit. The chip
+    /// takes interrupts between repetitions in the same way: it leaves the instruction pointer
+    /// on the instruction, with CX counting what's left, and carries on after the handler.
+    /// </summary>
+    internal int RepeatLimit { get; set; }
+
+    /// <summary>
     /// Runs one instruction. When it faults, the processor is left at the start of the fault's
     /// handler instead.
     /// </summary>

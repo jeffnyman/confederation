@@ -25,9 +25,18 @@ public sealed partial class Intel386
             return;
         }
 
+        int left = RepeatLimit > 0 ? RepeatLimit : int.MaxValue;
         while ((_regs[ECX] & mask) != 0)
         {
+            if (left-- == 0)
+            {
+                // to be carried on: the instruction, prefixes and all, runs again next step
+                _eip = _start;
+                return;
+            }
+
             Once();
+            Repetitions++;
             _regs[ECX] = (_regs[ECX] & ~mask) | ((_regs[ECX] - 1) & mask);
 
             if (compares && Is(Flag.Zero) != (_repeat == Repeat.WhileEqual))

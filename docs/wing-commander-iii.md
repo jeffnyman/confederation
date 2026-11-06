@@ -97,6 +97,42 @@ pointer moves, and (observed, by a scripted mouse):
 The game's mouse area is 1280 by 480 (functions 7 and 8), so the player spreads the mouse's
 motion over that rather than the driver's usual 640 by 200.
 
+## To the first mission
+
+From there, with nothing more needed from the machine but one fix to its clock (below), the
+game goes on to its first mission (observed, by a scripted mouse, at 30,000 cycles):
+
+1. talking to Hobbes plays the conversation, full-motion video with its subtitles, and back in
+   flight control there's more to do: "Attend BRIEFING.", "Run SIMULATOR.", "Go to FLIGHT
+   DECK.";
+2. the lift goes to the bridge, living and flight levels, and the bridge has its own people and
+   places (Maniac, gunnery control, a terminal);
+3. the briefing plays, the captain's map and all, and asks for a wingman ("Pick HOBBES.");
+4. back in flight control, "Fly MISSION." plays the launch, and the game comes to the cockpit in
+   the carrier's launch bay, with Hobbes and the other ships named on the display. With the
+   throttle up, the fighter moves, at 86 KPS on its display. In flight the mouse steers, so
+   flying out of the bay is for a player.
+
+The simulator ("Run SIMULATOR.") offers ten training missions, and the first flies: the HUD, the
+radar and "FLY TO WAY AREA", at about 24 frames a second, without the cockpit's picture.
+
+The game never needed a floating-point unit. Its coprocessor instructions are no-ops here, as on
+a 386 without one, and it flies without them.
+
+### The terminal, and time
+
+The main terminal, which asks for a callsign, ran seven times slower than real time, with
+nothing in the log. A profile showed half the host's time in string instructions: the screen
+is copied with `REP MOVS`, again and again. The machine's clock counted each `REP` as one
+instruction, however many thousand times it repeated, so a second of the game's time held far
+more copying than it should. DOSBox counts each repetition, and now so does the machine
+([the x86 CPU](the-x86-cpu.md)). The terminal then runs faster than real time.
+
+That made *Wing Commander II*'s speech test, run at the machine's default 4 million
+instructions a second, load its speech too slowly to keep up. GOG runs the game at 8,000 cycles,
+as the player does, and at that speed it keeps up again, so the test now runs the game at its
+own speed.
+
 ## In the player
 
 The player knows the game as `wc3`, from GOG's folder, by its CD image
@@ -105,7 +141,6 @@ The player knows the game as `wc3`, from GOG's folder, by its CD image
 
 Still to come, probably:
 
-- the floating-point unit (*to confirm*: it hasn't come up yet);
 - VESA, for its 640 by 480 mode, which it manages without;
 - a much faster processor (step 11);
-- the talk, the briefing and the first mission, untried so far.
+- playing the first mission through, its landing, and what follows, untried so far.

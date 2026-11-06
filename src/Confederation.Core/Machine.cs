@@ -31,6 +31,10 @@ public sealed partial class Machine : ICpuBus
     /// <summary>The segment of the BIOS area, where the service stubs live.</summary>
     internal const ushort BiosSegment = 0xF000;
 
+    // the repetitions of a string instruction between chances for an interrupt: at 30 million
+    // instructions a second, a few hundredths of a millisecond
+    private const int RepeatLimit = 1024;
+
     /// <summary>
     /// The machine's memory: 16 MB, enough for the protected-mode games (<i>Wing Commander III</i>
     /// asks for 8). Past the first megabyte it's reachable only while the A20 gate is open.
@@ -71,7 +75,7 @@ public sealed partial class Machine : ICpuBus
     /// </summary>
     public Machine(string gameFolder, string saveFolder)
     {
-        Cpu = new Intel386(this) { HostCall = HostCall };
+        Cpu = new Intel386(this) { HostCall = HostCall, RepeatLimit = RepeatLimit };
         _pic = new InterruptController(second: _pic2);
         _timer.Reloaded0 += () => _nextIrq0 = _timer.Start0 + _timer.Period0;
         _keyboard.Interrupt += () => _pic.Raise(1);
@@ -217,8 +221,10 @@ public sealed partial class Machine : ICpuBus
             }
             else
             {
+                // a repeated string instruction takes a step of time for each repetition
+                long repetitions = Cpu.Repetitions;
                 Cpu.Step();
-                _time++;
+                _time += 1 + Cpu.Repetitions - repetitions;
                 if (_dos.BetweenPrograms)
                 {
                     // the program ended inside a batch file: on to its next line, which

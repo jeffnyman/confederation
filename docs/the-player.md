@@ -33,14 +33,17 @@ Windows), never into the game's folder; see [the DOS layer](the-dos-layer.md#dri
 Each game runs at the speed GOG chose for it in DOSBox: 4,000 cycles for *Wing Commander*, 8,000
 for *Wing Commander II*. A DOSBox cycle is one instruction, counted per millisecond, so these are
 4 and 8 million instructions a second, which is what the machine's `InstructionsPerSecond` counts.
-`--cycles` overrides it.
+A repeated string instruction counts once for each time it repeats, as in DOSBox
+([the x86 CPU](the-x86-cpu.md)). `--cycles` overrides it.
 
 *Wing Commander III* is the exception. GOG runs it at `cycles=max`, as fast as the host goes, and
 the machine here manages about 40 million instructions a second (observed, headless, on the
 development machine). So its default is 30,000, which leaves room for the window and the sound.
 Its movies keep time by their sound, so they play in step whatever the speed (observed at 20,000,
-30,000 and 40,000). How fast its space flight needs the processor to be is still to find out;
-making the processor faster is [roadmap step 11](../ROADMAP.md).
+30,000 and 40,000). Its space flight runs at about 24 frames a second in empty space at both
+30,000 and 40,000, so there the game sets its own pace; in the carrier's launch bay it's about 21
+(observed, headless). How it fares in a dogfight is to confirm by playing; making the processor
+faster is [roadmap step 11](../ROADMAP.md).
 
 Why not "as fast as possible"? These games time some things by the timer and others by how fast
 the processor runs. *Wing Commander* came out in 1990, for the 286s and early 386s of the day, and

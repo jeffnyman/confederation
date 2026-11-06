@@ -68,7 +68,8 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
     player knows it as `wc3`, from GOG's folder, and Esc after the movie reaches the hangar.
     From there the mouse takes it about the carrier, once the mouse driver called the game's
     own handler, through IRQ 12 and the second interrupt controller
-    ([docs/the-player.md](docs/the-player.md#the-mouse)).
+    ([docs/the-player.md](docs/the-player.md#the-mouse)), and on through its briefing to the
+    cockpit of its first mission.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
 ## Later
