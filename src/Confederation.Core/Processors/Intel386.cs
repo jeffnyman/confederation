@@ -1,8 +1,9 @@
 namespace Confederation.Core.Processors;
 
 /// <summary>
-/// The Intel 80386 in real mode, run one instruction at a time, with every instruction a real-mode
-/// program can use apart from the floating-point unit's.
+/// The Intel 80386, run one instruction at a time: real mode, with every instruction a real-mode
+/// program can use apart from the floating-point unit's, and protected mode without paging,
+/// virtual-8086 mode or task switches.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -11,6 +12,10 @@ namespace Confederation.Core.Processors;
 /// limit. On the 386 the 32-bit registers, the FS and GS segments, the 386's new instructions and
 /// its 32-bit addressing all still work there, by way of the operand-size (<c>66h</c>) and
 /// address-size (<c>67h</c>) prefixes.
+/// </para>
+/// <para>
+/// Protected mode is in <c>Intel386.Protected.cs</c>: segments described by tables in memory,
+/// 32-bit code and stacks, four privilege levels, and interrupts through a table of gates.
 /// </para>
 /// <para>
 /// Each <see cref="Step"/> runs one whole instruction, prefixes and all; a repeated string
@@ -46,6 +51,13 @@ public sealed partial class Intel386
     private readonly uint[] _bases = new uint[6];
     private readonly uint[] _limits = [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF];
 
+    // and the rest of it: the descriptor's access byte, whether the segment is 32-bit (code that
+    // defaults to 32-bit operands and addresses, or a stack addressed by ESP), and what may be done
+    // through it. After reset each is a writable 16-bit data segment, CS a readable code segment
+    private readonly byte[] _access = [0x93, 0x9B, 0x93, 0x93, 0x93, 0x93];
+    private readonly bool[] _big = new bool[6];
+    private readonly SegmentUse[] _use = [SegmentUse.ReadWrite, SegmentUse.ReadWrite, SegmentUse.ReadWrite, SegmentUse.ReadWrite, SegmentUse.ReadWrite, SegmentUse.ReadWrite];
+
     private uint _eip;
     private uint _flags = 0x0002;
 
@@ -64,6 +76,20 @@ public sealed partial class Intel386
         None,
         WhileEqual,
         WhileNotEqual,
+    }
+
+    /// <summary>What may be done through a segment register.</summary>
+    [Flags]
+    private enum SegmentUse : byte
+    {
+        // a null selector in a data segment register: loading it is allowed, using it isn't
+        None = 0,
+        Read = 1,
+        Write = 2,
+        ReadWrite = Read | Write,
+
+        // offsets valid from above the limit to the top, for stacks that grow down
+        ExpandDown = 4,
     }
 
     /// <summary>Makes a processor on the bus, in real mode, as the 386 is after reset.</summary>
@@ -168,8 +194,11 @@ public sealed partial class Intel386
         _start = _eip;
         _startEsp = _regs[ESP];
         _length = 0;
-        _operand32 = false;
-        _address32 = false;
+
+        // a 32-bit code segment's instructions default to 32-bit operands and addresses, and the
+        // prefixes switch them to 16
+        _operand32 = _big[CS];
+        _address32 = _big[CS];
         _segment = -1;
         _repeat = Repeat.None;
         Instructions++;
@@ -185,7 +214,33 @@ public sealed partial class Intel386
             _eip = _start;
             _regs[ESP] = _startEsp;
             LastFault = fault.Vector;
-            EnterInterrupt(fault.Vector, _start);
+            RaiseFault(fault);
+        }
+    }
+
+    /// <summary>
+    /// Enters a fault's handler. A fault while entering it is a double fault, and a fault while
+    /// entering that would shut the processor down: the emulator stops there instead.
+    /// </summary>
+    private void RaiseFault(CpuFault fault)
+    {
+        try
+        {
+            EnterInterrupt(fault.Vector, _start, fault.ErrorCode, External.No);
+        }
+        catch (CpuFault second) when (fault.Vector != Vector.DoubleFault)
+        {
+            _regs[ESP] = _startEsp;
+            LastFault = Vector.DoubleFault;
+            try
+            {
+                EnterInterrupt(Vector.DoubleFault, _start, 0, External.No);
+            }
+            catch (CpuFault)
+            {
+                throw new NotSupportedException(
+                    $"The processor shut down: fault {second.Vector} entering the handler of fault {fault.Vector}, and another entering the double fault's.");
+            }
         }
     }
 
@@ -199,28 +254,76 @@ public sealed partial class Intel386
     public void Interrupt(int vector)
     {
         Halted = false;
-        EnterInterrupt(vector, _eip);
+        _start = _eip;
+        _startEsp = _regs[ESP];
+        try
+        {
+            EnterInterrupt(vector, _eip, -1, External.Yes);
+        }
+        catch (CpuFault fault)
+        {
+            // a bad gate or handler: its fault is raised instead, as for an instruction
+            _regs[ESP] = _startEsp;
+            LastFault = fault.Vector;
+            RaiseFault(fault);
+        }
     }
 
+    /// <summary>
+    /// Loads a segment register. In real mode only the selector and base change: the rest of the
+    /// descriptor cache stays as it was, which is how a program that set a large limit in
+    /// protected mode keeps it back in real mode. In protected mode the selector picks a descriptor.
+    /// </summary>
     private void LoadSegment(int segment, ushort selector)
     {
+        if (ProtectedMode)
+        {
+            LoadProtectedSegment(segment, selector);
+            return;
+        }
+
         _selectors[segment] = selector;
         _bases[segment] = (uint)selector << 4;
+    }
+
+    /// <summary>Where an interrupt came from: the processor itself, the interrupt controller, or a program.</summary>
+    private enum External : byte
+    {
+        No,
+        Yes,
+
+        // INT n, INT 3 and INTO: in protected mode their gates must allow the program's privilege
+        Software,
+    }
+
+    /// <summary>
+    /// Enters an interrupt or exception handler: the real-mode way, or through the protected-mode
+    /// interrupt table. An error code of -1 is none.
+    /// </summary>
+    private void EnterInterrupt(int vector, uint returnIp, int errorCode = -1, External source = External.Software)
+    {
+        if (ProtectedMode)
+        {
+            EnterProtectedInterrupt(vector, returnIp, errorCode, source);
+            return;
+        }
+
+        EnterRealInterrupt(vector, returnIp);
     }
 
     /// <summary>
     /// Enters an interrupt or exception handler the real-mode way: the flags, CS and IP go on the
     /// stack as words, interrupts and single-stepping are turned off, and the vector's entry in the
-    /// interrupt table at address 0 gives the handler's CS:IP.
+    /// interrupt table (at address 0, unless LIDT moved it) gives the handler's CS:IP.
     /// </summary>
     /// <remarks>
     /// The vector is read before anything is pushed. It matters when the stack overlaps the table:
     /// the pushes may overwrite the very entry being used, and the chip still goes where the entry
     /// pointed beforehand.
     /// </remarks>
-    private void EnterInterrupt(int vector, uint returnIp)
+    private void EnterRealInterrupt(int vector, uint returnIp)
     {
-        uint entry = (uint)vector * 4;
+        uint entry = _idtBase + ((uint)vector * 4);
         uint ip = (uint)(_bus.Read(entry) | (_bus.Read(entry + 1) << 8));
         ushort cs = (ushort)(_bus.Read(entry + 2) | (_bus.Read(entry + 3) << 8));
 
@@ -233,7 +336,7 @@ public sealed partial class Intel386
         _eip = ip;
     }
 
-    // the exceptions a real-mode program can raise
+    // the exceptions the processor raises
     private static class Vector
     {
         public const int DivideError = 0;
@@ -242,21 +345,33 @@ public sealed partial class Intel386
         public const int Overflow = 4;
         public const int Bound = 5;
         public const int InvalidOpcode = 6;
+        public const int DoubleFault = 8;
+        public const int InvalidTss = 10;
+        public const int SegmentNotPresent = 11;
         public const int StackFault = 12;
         public const int GeneralProtection = 13;
     }
 
-    private static CpuFault Fault(int vector) => new(vector);
+    /// <summary>
+    /// A fault. In protected mode the double fault and the faults from 10 to 14 push an error
+    /// code, most often the selector at fault; in real mode none does.
+    /// </summary>
+    private CpuFault Fault(int vector, int errorCode = 0)
+        => new(vector, ProtectedMode && vector is Vector.DoubleFault or (>= Vector.InvalidTss and <= 14) ? errorCode : -1);
 
-    private static CpuFault InvalidOpcode() => new(Vector.InvalidOpcode);
+    private static CpuFault InvalidOpcode() => new(Vector.InvalidOpcode, -1);
 
     /// <summary>
     /// A fault, thrown from wherever in an instruction it's found and caught by <see cref="Step"/>.
     /// Faults are rare in the programs this core runs, so the cost of an exception doesn't matter,
     /// and throwing keeps every memory access free of error checks along the way.
     /// </summary>
-    private sealed class CpuFault(int vector) : Exception
+    /// <param name="vector">The exception.</param>
+    /// <param name="errorCode">The error code pushed for it; -1 for none.</param>
+    private sealed class CpuFault(int vector, int errorCode) : Exception
     {
         public int Vector { get; } = vector;
+
+        public int ErrorCode { get; } = errorCode;
     }
 }

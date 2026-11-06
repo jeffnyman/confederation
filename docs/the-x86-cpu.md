@@ -56,6 +56,46 @@ Two **prefix bytes** reach the 386's 32-bit world from real mode. `66h` makes on
 32-bit operands (EAX instead of AX), and `67h` makes it use 32-bit addressing, which has a richer
 form: any register as a base, plus a second register scaled by 1, 2, 4 or 8.
 
+## Protected mode in brief
+
+*Wing Commander III* runs in **protected mode**, the 286's invention that the 386 made 32-bit.
+Setting bit 0 of control register CR0 (PE, "protection enable") switches to it, and the segment
+registers change meaning: instead of a paragraph number, each holds a **selector**, an index into
+a table of eight-byte **descriptors** in memory. A descriptor gives the segment's base anywhere in
+4 GB, its limit (counted in bytes, or in 4 KB pages when its granularity bit is set, so a single
+segment can span all of memory), and its kind: code or data, readable or writable, and present or
+not. There are two tables, the global one (GDT) and a local one (LDT); bit 2 of a selector picks
+which, and its low two bits are its *requested privilege level*.
+
+The processor reads a descriptor only when a segment register is loaded, and keeps it in a hidden
+**descriptor cache** beside the register. Every access afterwards uses the cache. Real mode has the
+same caches (loading a segment register there just sets the base to 16 times the selector), which
+is why a program can set a 4 GB limit in protected mode, go back to real mode, and keep it: the
+trick known as "unreal mode". The tests do exactly that.
+
+Three more things come with it:
+
+- **32-bit code.** A code segment's D bit makes its instructions default to 32-bit operands and
+  addresses, and the `66h` and `67h` prefixes then switch one instruction back to 16. A stack
+  segment's B bit makes the stack 32-bit, addressed by ESP instead of SP.
+- **Privilege.** There are four levels, 0 the most privileged. The level of the code running (CPL)
+  is the code segment selector's low two bits. Data and stacks have levels too, and loading a
+  segment register checks them. Some instructions (loading the tables, writing CR0, `HLT`) are
+  level 0's alone, and `CLI`, `STI`, `IN` and `OUT` need a level at least as privileged as the I/O
+  privilege level in the flags. A far return or `IRET` can go to a less privileged level, taking
+  that level's stack from the stack it returns through; the data segment registers that still hold
+  more privileged segments are then made null, so the outer code can't keep using them.
+- **Interrupts through gates.** The interrupt descriptor table (IDT) holds a gate for each vector:
+  the handler's selector and offset, whether it's an *interrupt gate* (which turns interrupts off)
+  or a *trap gate* (which doesn't), and a level a program's `INT` must have to use it. A handler
+  more privileged than the code it interrupts runs on its own level's stack, which comes from the
+  **task state segment** (TSS) that `LTR` names; the old SS:ESP goes on the new stack first. Faults
+  push an **error code** too, usually the selector at fault, so a handler can tell what went wrong.
+
+What isn't emulated yet, each stopping the machine with a message if a program asks for it:
+paging, virtual-8086 mode, task switches, and call gates. The DPMI host the games will use (step 9b)
+doesn't need them.
+
 ## How the code is organized
 
 The class is `Intel386`, split across files by concern:
@@ -64,6 +104,7 @@ The class is `Intel386`, split across files by concern:
 |---|---|
 | `ICpuBus.cs` | What the CPU sees of the machine: memory by physical address, and I/O ports |
 | `Intel386.cs` | The registers, `Step()`, and interrupt and fault entry |
+| `Intel386.Protected.cs` | Protected mode: descriptors, segment loads and their checks, privilege, far transfers, interrupts through gates, and the system instructions |
 | `Intel386.Memory.cs` | Instruction fetch, ModR/M and SIB decoding, segment-checked memory access, the stack |
 | `Intel386.Execute.cs` | Prefixes and the one-byte opcodes |
 | `Intel386.Extended.cs` | The two-byte (`0Fh`) opcodes, mostly the 386's additions |
@@ -89,9 +130,10 @@ Some design choices worth knowing:
 
 Hardware interrupts arrive between instructions through `Interrupt(vector)`, which the machine
 calls when its interrupt controller has one and the interrupt flag is set (see
-[the DOS layer](the-dos-layer.md#the-timer-early)). What isn't there yet: protected mode, the
-floating-point unit (a program that probes for one finds none), the trap flag's single-stepping,
-and the one-instruction delay after `STI` before interrupts are taken.
+[the DOS layer](the-dos-layer.md#the-timer-early)). What isn't there yet: protected mode's paging,
+virtual-8086 mode and task switches, the floating-point unit (a program that probes for one finds
+none), the trap flag's single-stepping, and the one-instruction delay after `STI` before
+interrupts are taken.
 
 ## Testing against a real chip
 
@@ -152,6 +194,27 @@ CONFEDERATION_CASE=0FAB:19 dotnet test -c Release --filter Trace_one_case
 That's how most of the bugs below were found. For behavior that needed a rule worked out, small
 Python scripts read the same files, pulled out every case of one instruction, and checked candidate
 formulas against all of them.
+
+### Protected mode's own tests
+
+The suite is real mode's alone, so protected mode has hand-written tests instead
+(`ProtectedModeTests.cs`). Each is a small program, assembled by hand into bytes with a comment for
+every instruction, that builds its descriptor tables in memory, runs, and leaves its results at
+5000h for the test to check. Between them they:
+
+- switch from real mode to 32-bit protected mode and back, keeping a 4 GB limit in real mode;
+- raise faults and check the error code and return address each handler receives: a selector
+  outside the table, a write to a read-only segment, a segment not present, an offset below an
+  expand-down segment's limit, a stack at another privilege, a null stack and a null data segment;
+- take an interrupt gate and a trap gate, and check the interrupt flag inside and after;
+- drop to privilege 3 with a far return, find DS made null, come back through a privilege-3 gate
+  onto the task state segment's stack, and fault on `CLI`;
+- run the system instructions (`LAR`, `LSL`, `VERR`, `VERW`, `ARPL`, `SGDT`, `SIDT`, `SMSW`) and
+  16-bit protected-mode code.
+
+They check the rules as Intel's manuals and DOSBox give them (**to confirm** against a real chip,
+should protected-mode captures ever join the suite). The real-mode suite is the guard on the other
+side: all 1.76 million cases still pass with protected mode in place.
 
 ## What the hardware taught
 

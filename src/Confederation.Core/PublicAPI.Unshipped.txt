@@ -99,3 +99,4 @@ Confederation.Core.Machine.SetMouseButton(int button, bool down) -> void
 Confederation.Core.Machine.ReleaseKeys() -> void
 Confederation.Core.Machine.SaveState(System.IO.Stream! stream) -> void
 Confederation.Core.Machine.LoadState(System.IO.Stream! stream) -> void
+Confederation.Core.Processors.Intel386.ProtectedMode.get -> bool

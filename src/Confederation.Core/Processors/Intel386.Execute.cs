@@ -20,10 +20,10 @@ public sealed partial class Intel386
                 case 0x64: _segment = FS; continue;
                 case 0x65: _segment = GS; continue;
 
-                // real-mode code is 16-bit; these prefixes switch one instruction to 32-bit
-                // operands or 32-bit addressing
-                case 0x66: _operand32 = true; continue;
-                case 0x67: _address32 = true; continue;
+                // these prefixes switch one instruction to the other operand or address size: to
+                // 32 bits in real mode and 16-bit code, to 16 in 32-bit code
+                case 0x66: _operand32 = !_big[CS]; continue;
+                case 0x67: _address32 = !_big[CS]; continue;
 
                 case 0xF0: _lock = true; continue;
                 case 0xF2: _repeat = Repeat.WhileNotEqual; continue;
@@ -153,6 +153,7 @@ public sealed partial class Intel386
             case 0x60: PushAll(size); return;
             case 0x61: PopAll(size); return;
             case 0x62: Bound(size); return;
+            case 0x63: AdjustRpl(); return;
 
             case 0x68: Push(FetchImmediate(size), size); return;
             case 0x69:
@@ -365,6 +366,12 @@ public sealed partial class Intel386
             case 0xCB:
             {
                 ushort release = opcode == 0xCA ? FetchWord() : (ushort)0;
+                if (ProtectedMode)
+                {
+                    ProtectedReturn(size, release);
+                    return;
+                }
+
                 uint offset = Pop(size);
                 ushort selector = (ushort)Pop(size);
                 JumpFar(selector, offset);
@@ -390,6 +397,12 @@ public sealed partial class Intel386
 
             case 0xCF:
             {
+                if (ProtectedMode)
+                {
+                    ProtectedInterruptReturn(size);
+                    return;
+                }
+
                 uint offset = Pop(size);
                 ushort selector = (ushort)Pop(size);
                 uint flags = Pop(size);
@@ -451,17 +464,20 @@ public sealed partial class Intel386
             case 0xEE: PortOut((ushort)_regs[EDX], 1, GetReg(EAX, 1)); return;
             case 0xEF: PortOut((ushort)_regs[EDX], size, GetReg(EAX, size)); return;
 
-            // ICEBP, undocumented: the debug exception, as a trap
-            case 0xF1: EnterInterrupt(Vector.Debug, _eip); return;
+            // ICEBP, undocumented: the debug exception, as a trap, through its gate whatever the gate's privilege
+            case 0xF1: EnterInterrupt(Vector.Debug, _eip, -1, External.No); return;
 
-            case 0xF4: Halted = true; return;
+            case 0xF4:
+                RequirePrivilege();
+                Halted = true;
+                return;
             case 0xF5: _flags ^= Flag.Carry; return;
             case 0xF6: Group3(1); return;
             case 0xF7: Group3(size); return;
             case 0xF8: Set(Flag.Carry, false); return;
             case 0xF9: Set(Flag.Carry, true); return;
-            case 0xFA: Set(Flag.Interrupt, false); return;
-            case 0xFB: Set(Flag.Interrupt, true); return;
+            case 0xFA: RequireIoPrivilege(); Set(Flag.Interrupt, false); return;
+            case 0xFB: RequireIoPrivilege(); Set(Flag.Interrupt, true); return;
             case 0xFC: Set(Flag.Direction, false); return;
             case 0xFD: Set(Flag.Direction, true); return;
             case 0xFE: Group4(); return;
@@ -497,6 +513,12 @@ public sealed partial class Intel386
         if (!_operand32)
         {
             offset &= 0xFFFF;
+        }
+
+        if (ProtectedMode)
+        {
+            ProtectedJump(selector, offset);
+            return;
         }
 
         // in real mode loading CS keeps the limit, so the offset can be checked before the load
@@ -536,18 +558,27 @@ public sealed partial class Intel386
 
     /// <summary>
     /// POPF and IRET's flags. In real mode every flag can be written, the I/O privilege level and
-    /// nested-task bits included; the virtual-8086 bit can't be set this way.
+    /// nested-task bits included; the virtual-8086 bit can't be set this way. In protected mode
+    /// the I/O privilege level changes only at privilege 0, and the interrupt flag only at a level
+    /// the I/O privilege level allows; otherwise they're left as they were, without a fault.
     /// </summary>
     private void SetFlags(uint value, int size)
     {
-        if (size == 2)
+        uint changeable = size == 2 ? 0x7FD5u : 0x0001_7FD5u;
+        if (ProtectedMode)
         {
-            _flags = (_flags & 0xFFFF_0000) | (value & 0x7FD5) | 0x0002;
+            if (_cpl > 0)
+            {
+                changeable &= ~IoplMask;
+            }
+
+            if (_cpl > Iopl)
+            {
+                changeable &= ~Flag.Interrupt;
+            }
         }
-        else
-        {
-            _flags = (_flags & 0xFFFE_0000) | (value & 0x0001_7FD5) | 0x0002;
-        }
+
+        _flags = (_flags & ~changeable) | (value & changeable) | 0x0002;
     }
 
     // ---- groups ------------------------------------------------------------------------------
@@ -668,7 +699,9 @@ public sealed partial class Intel386
     /// </summary>
     private void PopSegment(int segment)
     {
-        uint sp = _regs[ESP] & 0xFFFF;
+        // ESP moves by the stack's width before the load, which for POP SS may change it; if the
+        // load faults, the instruction is undone and ESP with it
+        uint sp = _regs[ESP] & StackMask;
         ushort selector = (ushort)ReadMemory(SS, sp, 2);
         SetSp(sp + (uint)OperandSize);
         LoadSegment(segment, selector);
@@ -696,12 +729,13 @@ public sealed partial class Intel386
     /// </summary>
     private void PushAll(int size)
     {
-        uint sp = _regs[ESP] & 0xFFFF;
-        uint top = (sp - (uint)(8 * size)) & 0xFFFF;
+        uint mask = StackMask;
+        uint sp = _regs[ESP] & mask;
+        uint top = (sp - (uint)(8 * size)) & mask;
         for (int reg = EDI; reg >= EAX; reg--)
         {
             uint value = reg == ESP ? _regs[ESP] & Mask(size) : GetReg(reg, size);
-            WriteMemory(SS, (top + (uint)((EDI - reg) * size)) & 0xFFFF, size, value);
+            WriteMemory(SS, (top + (uint)((EDI - reg) * size)) & mask, size, value);
         }
 
         SetSp(top);
@@ -755,14 +789,15 @@ public sealed partial class Intel386
         int level = FetchByte() & 0x1F;
 
         Push(GetReg(EBP, size), size);
-        uint frame = _regs[ESP] & 0xFFFF;
+        uint mask = StackMask;
+        uint frame = _regs[ESP] & mask;
 
         if (level > 0)
         {
             uint bp = _regs[EBP];
             for (int i = 1; i < level; i++)
             {
-                bp = (bp - (uint)size) & 0xFFFF;
+                bp = (bp - (uint)size) & mask;
                 Push(ReadMemory(SS, bp, size), size);
             }
 
@@ -775,6 +810,7 @@ public sealed partial class Intel386
 
     private uint PortIn(ushort port, int size)
     {
+        CheckPort(port, size);
         uint value = 0;
         for (int i = 0; i < size; i++)
         {
@@ -786,6 +822,7 @@ public sealed partial class Intel386
 
     private void PortOut(ushort port, int size, uint value)
     {
+        CheckPort(port, size);
         for (int i = 0; i < size; i++)
         {
             _bus.Out((ushort)(port + i), (byte)(value >> (8 * i)));

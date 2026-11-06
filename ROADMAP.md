@@ -39,8 +39,18 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
 
 ## *Wing Commander III*, the first stretch
 
-9. **Protected mode.** The 386's 32-bit protected mode with paging, and the DPMI services its DOS
-   extender expects.
+9. **Protected mode.** The 386's 32-bit protected mode, and the DPMI services the DOS extenders
+   expect: Origin's own loader for *Wing Commander III*, and PMODE/W for W.C.A.T.'s launcher. Both
+   ask for DPMI first, so the machine provides a DPMI host of its own, in C#, rather than VCPI.
+   - **9a. The CPU.** *Done.* Descriptors, segment loads and their checks, 32-bit code and stacks,
+     privilege levels, far transfers, interrupts and exceptions through gates, the task state
+     segment's stacks, and the system instructions; checked by hand-assembled programs
+     ([docs/the-x86-cpu.md](docs/the-x86-cpu.md#protected-mode-in-brief)). Not yet: paging,
+     virtual-8086 mode, task switches, call gates.
+   - **9b. The DPMI host.** INT 2Fh/1687h, the switch into protected mode, INT 31h's services, and
+     interrupts reflected down to DOS and the BIOS.
+   - **9c. W.C.A.T.'s launcher** to its screen: the first real protected-mode program.
+   - **9d. *Wing Commander III*** as far as it gets before it needs the CD.
 10. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 

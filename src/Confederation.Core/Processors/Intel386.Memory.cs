@@ -250,14 +250,29 @@ public sealed partial class Intel386
 
     /// <summary>
     /// The linear address of an access, after checking that all of it lies within the segment's
-    /// limit. In real mode the limit is 64 KB, so a word at offset FFFFh faults rather than wrapping
-    /// as it did on the 8086: a stack fault in the stack segment, a general protection fault in
-    /// any other.
+    /// limit and that the segment allows it. In real mode the limit is 64 KB, so a word at offset
+    /// FFFFh faults rather than wrapping as it did on the 8086: a stack fault in the stack segment,
+    /// a general protection fault in any other.
     /// </summary>
-    private uint Linear(int segment, uint offset, int size)
+    /// <remarks>
+    /// In protected mode a segment may be read-only, or code that can't be read, or unusable
+    /// (a null selector); and an expand-down segment, for a stack that grows down, holds the
+    /// offsets above its limit rather than those up to it.
+    /// </remarks>
+    private uint Linear(int segment, uint offset, int size, bool write = false)
     {
+        var use = _use[segment];
+        if ((use & (write ? SegmentUse.Write : SegmentUse.Read)) == 0)
+        {
+            throw Fault(segment == SS ? Vector.StackFault : Vector.GeneralProtection);
+        }
+
         uint limit = _limits[segment];
-        if (offset > limit || limit - offset < (uint)(size - 1))
+        uint last = offset + (uint)(size - 1);
+        bool outside = (use & SegmentUse.ExpandDown) == 0
+            ? offset > limit || limit - offset < (uint)(size - 1)
+            : offset <= limit || last > (_big[segment] ? 0xFFFF_FFFF : 0xFFFF) || last < offset;
+        if (outside)
         {
             throw Fault(segment == SS ? Vector.StackFault : Vector.GeneralProtection);
         }
@@ -279,7 +294,7 @@ public sealed partial class Intel386
 
     private void WriteMemory(int segment, uint offset, int size, uint value)
     {
-        uint address = Linear(segment, offset, size);
+        uint address = Linear(segment, offset, size, write: true);
         for (int i = 0; i < size; i++)
         {
             _bus.Write(address + (uint)i, (byte)(value >> (8 * i)));
@@ -288,22 +303,35 @@ public sealed partial class Intel386
 
     // ---- the stack ---------------------------------------------------------------------------
 
-    // in real mode the stack is 16-bit: SP addresses it, and the top half of ESP stays as it is
+    // a 16-bit stack, real mode's, is addressed by SP and leaves the top half of ESP as it is; a
+    // 32-bit stack segment's is addressed by the whole of ESP
+
+    /// <summary>The part of ESP that addresses the stack: SP, or all of ESP for a 32-bit stack segment.</summary>
+    private uint StackMask => _big[SS] ? 0xFFFF_FFFF : 0xFFFF;
 
     private void Push(uint value, int size)
     {
-        uint sp = (_regs[ESP] - (uint)size) & 0xFFFF;
+        uint mask = StackMask;
+        uint sp = (_regs[ESP] - (uint)size) & mask;
         WriteMemory(SS, sp, size, value);
-        _regs[ESP] = (_regs[ESP] & 0xFFFF_0000) | sp;
+        _regs[ESP] = (_regs[ESP] & ~mask) | sp;
     }
 
     private uint Pop(int size)
     {
-        uint sp = _regs[ESP] & 0xFFFF;
+        uint mask = StackMask;
+        uint sp = _regs[ESP] & mask;
         uint value = ReadMemory(SS, sp, size);
-        _regs[ESP] = (_regs[ESP] & 0xFFFF_0000) | ((sp + (uint)size) & 0xFFFF);
+        _regs[ESP] = (_regs[ESP] & ~mask) | ((sp + (uint)size) & mask);
         return value;
     }
 
-    private void SetSp(uint sp) => _regs[ESP] = (_regs[ESP] & 0xFFFF_0000) | (sp & 0xFFFF);
+    /// <summary>Reads from the stack at a distance above its top, without popping.</summary>
+    private uint PeekStack(int above, int size) => ReadMemory(SS, (_regs[ESP] + (uint)above) & StackMask, size);
+
+    private void SetSp(uint sp)
+    {
+        uint mask = StackMask;
+        _regs[ESP] = (_regs[ESP] & ~mask) | (sp & mask);
+    }
 }

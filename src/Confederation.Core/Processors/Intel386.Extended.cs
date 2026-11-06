@@ -10,8 +10,21 @@ public sealed partial class Intel386
         int size = OperandSize;
         switch (opcode)
         {
+            case 0x00: DescriptorTableGroup(); return;
+            case 0x01: SystemTableGroup(); return;
+            case 0x02: LoadAccessOrLimit(limit: false); return;
+            case 0x03: LoadAccessOrLimit(limit: true); return;
+
             // CLTS: clears the task-switched bit of CR0
-            case 0x06: Cr0 &= ~0x8u; return;
+            case 0x06:
+                RequirePrivilege();
+                Cr0 &= ~0x8u;
+                return;
+
+            case >= 0x20 and <= 0x24:
+            case 0x26:
+                MoveSpecialRegister(opcode);
+                return;
 
             case >= 0x80 and <= 0x8F:
             {
@@ -97,13 +110,9 @@ public sealed partial class Intel386
                 return;
             }
 
-            // the system instructions (descriptor tables, the machine status word, control and
-            // debug registers) and LOADALL belong to protected mode, which comes later
-            case 0x00:
-            case 0x01:
+            // LOADALL, undocumented, loads the whole processor's state from memory
             case 0x07:
-            case >= 0x20 and <= 0x26:
-                throw new NotSupportedException($"The 386 instruction 0F {opcode:X2} isn't emulated yet.");
+                throw new NotSupportedException("The 386's LOADALL isn't emulated.");
 
             // not an instruction on any x86: the emulator's own escape to code outside the
             // machine, followed by a byte saying which service. Without a handler it's invalid,
