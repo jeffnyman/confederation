@@ -355,6 +355,7 @@ internal static class Program
                     Mouse = profile.Mouse ?? true,
                     MouseSpeed = (profile.MouseSpeed ?? 100) / 100.0,
                     StatePath = statePath,
+                    Icon = GameIcons.For(game),
                     StandIns = cheats ? new StandInKeys(Games.CheatKeys(game.Series)) : StandInKeys.None,
                 };
 

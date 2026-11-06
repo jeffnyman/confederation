@@ -31,6 +31,9 @@ internal sealed class PlayerOptions
     /// <summary>The file Ctrl+F5 saves the machine's state to and Ctrl+F9 loads it from; none, and they do nothing.</summary>
     public string? StatePath { get; init; }
 
+    /// <summary>The window's icon, the game's, at its sizes; none, and it's the system's own.</summary>
+    public IReadOnlyList<IconImage> Icon { get; init; } = [];
+
     /// <summary>Keys that, with Alt, go to the game as others: the cheats' keys, when they're on.</summary>
     public StandInKeys StandIns { get; init; } = StandInKeys.None;
 }
@@ -99,6 +102,7 @@ internal sealed unsafe class SdlPlayer : IDisposable
             SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO | SDL_InitFlags.SDL_INIT_EVENTS | SDL_InitFlags.SDL_INIT_GAMEPAD),
             "SDL_Init");
         _window = new SdlWindow(options.Title, options.Scale, options.Fullscreen, options.SquarePixels);
+        _window.SetIcon(options.Icon);
         if (options.Sound)
         {
             try

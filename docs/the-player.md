@@ -82,6 +82,19 @@ took 19 ms to draw, in a frame of 14.3 ms. The sound is queued a frame at a time
 and crackled, in full screen only. Through the renderer the same frame takes a quarter of a
 millisecond.
 
+## The icon
+
+Each game's window has the game's own icon, in its title bar and the taskbar. The icons are built
+into the player (`src/Confederation.Player/Icons`, one for each program it knows by name; *The
+Secret Missions* share *Wing Commander*'s, as they share its program), and `GameIcons` reads them.
+
+An `.ico` file is a directory of pictures of one icon at several sizes, each a PNG or a Windows
+bitmap without its file header. A bitmap's height counts twice: its colors are followed by a mask
+of a bit a pixel, set where the icon is see-through, and both run from the bottom row up, each row
+padded to four bytes. These icons have bitmaps of 24 bits a pixel at 32 and 48 pixels, which take
+their shape from the mask, and a PNG at 256, which a window doesn't need. The window takes the
+largest picture as its icon and the others as its smaller sizes, and the system picks among them.
+
 ## The keyboard
 
 SDL reports each key by its USB HID *usage*, a number for the key's place on the keyboard. The PC

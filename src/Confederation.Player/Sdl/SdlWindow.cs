@@ -136,6 +136,51 @@ internal sealed unsafe class SdlWindow : IDisposable
         SDL_RenderPresent(_renderer);
     }
 
+    /// <summary>
+    /// Gives the window an icon, in the title bar and the taskbar: the largest picture, with the
+    /// others as its smaller sizes, for the system to choose among.
+    /// </summary>
+    public void SetIcon(IReadOnlyList<IconImage> images)
+    {
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        var sizes = images.OrderByDescending(image => image.Width).ToList();
+        var icon = Surface(sizes[0]);
+        try
+        {
+            // the alternates belong to the icon once added, and go with it
+            foreach (var smaller in sizes.Skip(1))
+            {
+                var alternate = Surface(smaller);
+                SDL_AddSurfaceAlternateImage(icon, alternate);
+                SDL_DestroySurface(alternate);
+            }
+
+            // an icon is a nicety: a system that won't take one is no reason to stop
+            SDL_SetWindowIcon(_window, icon);
+        }
+        finally
+        {
+            SDL_DestroySurface(icon);
+        }
+
+        static SDL_Surface* Surface(IconImage image)
+        {
+            var surface = SdlException.ThrowIfNull(SDL_CreateSurface(image.Width, image.Height, SDL_PixelFormat.SDL_PIXELFORMAT_ARGB8888), "SDL_CreateSurface");
+            int pitch = surface->pitch / sizeof(uint);
+            var pixels = new Span<uint>((void*)surface->pixels, pitch * image.Height);
+            for (int y = 0; y < image.Height; y++)
+            {
+                image.Pixels.AsSpan(y * image.Width, image.Width).CopyTo(pixels.Slice(y * pitch, image.Width));
+            }
+
+            return surface;
+        }
+    }
+
     /// <summary>Switches between a window and the full screen.</summary>
     public void ToggleFullscreen() => SdlException.ThrowIfFalse(SDL_SetWindowFullscreen(_window, !IsFullscreen), "SDL_SetWindowFullscreen");
 

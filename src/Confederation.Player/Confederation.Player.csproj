@@ -17,4 +17,9 @@
     <ProjectReference Include="..\Confederation.Core\Confederation.Core.csproj" />
     <PackageReference Include="ppy.SDL3-CS" />
   </ItemGroup>
+
+  <!-- the games' icons, for their windows: read by name, as Icons/wc1.ico -->
+  <ItemGroup>
+    <EmbeddedResource Include="Icons\*.ico" LogicalName="Icons/%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>
