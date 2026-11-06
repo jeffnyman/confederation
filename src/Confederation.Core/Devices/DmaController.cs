@@ -21,13 +21,23 @@ namespace Confederation.Core.Devices;
 /// with a flip-flop that keeps track of which is next.
 /// </para>
 /// <para>
-/// The AT's second controller, for 16-bit transfers on channels 5 to 7, isn't emulated.
+/// The AT added a second 8237 for 16-bit transfers, on channels 4 to 7 (4 links the first
+/// controller to it). It's the same chip, at ports C0h-DEh, its registers every other port, with
+/// page registers at 8Fh, 8Bh, 89h and 8Ah. It moves a word at a time, and counts in words: its
+/// address is a word's, so the byte address is twice it, and the page register's lowest bit is
+/// left out. A transfer can't cross a 128 KB boundary.
 /// </para>
 /// </remarks>
-internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> write)
+internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> write, bool wide = false)
 {
-    private readonly Channel[] _channels = [new(), new(), new(), new()];
+    private readonly Channel[] _channels = [new(wide), new(wide), new(wide), new(wide)];
     private bool _flipFlop;
+
+    // the page registers' ports, for channels 0 to 3 of this controller
+    private readonly int[] _pagePorts = wide ? [0x8F, 0x8B, 0x89, 0x8A] : [0x87, 0x83, 0x81, 0x82];
+
+    /// <summary>Whether this is the second controller, which moves words.</summary>
+    public bool Wide => wide;
 
     /// <summary>Called when a channel's setup changes, so a device can see what it means for its timing.</summary>
     public Action? Changed { get; set; }
@@ -52,6 +62,25 @@ internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> wr
         }
 
         value = read(channel.Address);
+        Step(channel);
+        return true;
+    }
+
+    /// <summary>
+    /// A device takes a word from memory through a channel of the second controller, which
+    /// counts in words. False when the channel is masked.
+    /// </summary>
+    public bool ReadWord(int number, out ushort value)
+    {
+        var channel = _channels[number];
+        if (channel.Masked)
+        {
+            value = 0;
+            return false;
+        }
+
+        uint address = channel.Address;
+        value = (ushort)(read(address) | (read(address + 1) << 8));
         Step(channel);
         return true;
     }
@@ -89,9 +118,22 @@ internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> wr
         }
     }
 
-    /// <summary>A read of ports 00h-0Fh, or a page register.</summary>
+    /// <summary>
+    /// A register's number from its port: the first controller's are ports 00h-0Fh, the
+    /// second's every other port from C0h. A page register's port is left as it is.
+    /// </summary>
+    private int Register(int port) => wide && port >= 0xC0 ? (port - 0xC0) >> 1 : port;
+
+    /// <summary>A read of one of the controller's registers, or a page register.</summary>
     public byte In(int port)
     {
+        int page = Array.IndexOf(_pagePorts, port);
+        if (page >= 0)
+        {
+            return _channels[page].Page;
+        }
+
+        port = Register(port);
         if (port < 8)
         {
             var channel = _channels[port >> 1];
@@ -116,23 +158,21 @@ internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> wr
                 }
 
                 return (byte)status;
-            case 0x87:
-                return _channels[0].Page;
-            case 0x83:
-                return _channels[1].Page;
-            case 0x81:
-                return _channels[2].Page;
-            case 0x82:
-                return _channels[3].Page;
             default:
                 return 0xFF;
         }
     }
 
-    /// <summary>A write to ports 00h-0Fh, or a page register.</summary>
+    /// <summary>A write to one of the controller's registers, or a page register.</summary>
     public void Out(int port, byte value)
     {
-        if (port < 8)
+        int page = Array.IndexOf(_pagePorts, port);
+        port = Register(port);
+        if (page >= 0)
+        {
+            _channels[page].Page = value;
+        }
+        else if (port < 8)
         {
             var channel = _channels[port >> 1];
             _flipFlop = !_flipFlop;
@@ -200,25 +240,13 @@ internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> wr
                     }
 
                     break;
-                case 0x87:
-                    _channels[0].Page = value;
-                    break;
-                case 0x83:
-                    _channels[1].Page = value;
-                    break;
-                case 0x81:
-                    _channels[2].Page = value;
-                    break;
-                case 0x82:
-                    _channels[3].Page = value;
-                    break;
             }
         }
 
         Changed?.Invoke();
     }
 
-    private sealed class Channel
+    private sealed class Channel(bool wide)
     {
         public ushort BaseAddress;
         public ushort BaseCount;
@@ -230,6 +258,9 @@ internal sealed class DmaController(Func<uint, byte> read, Action<uint, byte> wr
         public bool Decrement;
         public bool TerminalCount;
 
-        public uint Address => ((uint)Page << 16) | CurrentAddress;
+        // a word channel's address is a word's, within a 128 KB page whose lowest bit is left out
+        public uint Address => wide
+            ? ((uint)(Page & 0xFE) << 16) | ((uint)CurrentAddress << 1)
+            : ((uint)Page << 16) | CurrentAddress;
     }
 }

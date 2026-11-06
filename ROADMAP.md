@@ -63,8 +63,8 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
      ([docs/wing-commander-iii.md](docs/wing-commander-iii.md)).
 10. **CD-ROM.** *Done.* The game's ISO image as drive D:, read-only, with programs run from it, and
     MSCDEX's answers. *Wing Commander III* runs from GOG's image, reads its archives from it, and
-    draws the first frame of its opening movie ([docs/the-cd.md](docs/the-cd.md)). It waits
-    there, most likely for the Sound Blaster 16's 16-bit sound, which comes next.
+    plays its opening movie ([docs/the-cd.md](docs/the-cd.md)), once the Sound Blaster 16's 16-bit
+    sound and the second DMA controller were in ([docs/the-sound.md](docs/the-sound.md)).
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
 ## Later

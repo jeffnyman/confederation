@@ -19,6 +19,7 @@ public sealed partial class Machine
     private readonly Opl _opl = new(SampleRate);
     private Mpu401 _mpu = null!;
     private DmaController _dma = null!;
+    private DmaController _wideDma = null!;
     private SoundBlaster _soundBlaster = null!;
 
     // when the sound must next be made up to, because a device will interrupt then; an
@@ -89,9 +90,11 @@ public sealed partial class Machine
         _sources.Add(_opl);
         _mpu = new Mpu401(line => Log?.Invoke(line));
 
-        // the Sound Blaster's digital sound, through DMA channel 1, interrupting on IRQ 5
+        // the Sound Blaster's digital sound, through DMA channel 1 (8-bit) or 5 (16-bit, the
+        // second controller's channel 1), interrupting on IRQ 5
         _dma = new DmaController(Read, Write);
-        _soundBlaster = new SoundBlaster(_dma, 1, SampleRate, () => _pic.Raise(5), line => Log?.Invoke(line));
+        _wideDma = new DmaController(Read, Write, wide: true);
+        _soundBlaster = new SoundBlaster(_dma, 1, SampleRate, () => _pic.Raise(5), line => Log?.Invoke(line), _wideDma, 1);
         _sources.Add(_soundBlaster);
     }
 

@@ -8,13 +8,32 @@ public class SoundBlasterTests
 {
     private readonly byte[] _memory = new byte[0x10_0000];
     private readonly DmaController _dma;
+    private readonly DmaController _wideDma;
     private readonly SoundBlaster _card;
     private int _interrupts;
 
     public SoundBlasterTests()
     {
         _dma = new DmaController(address => _memory[address & 0xF_FFFF], (address, value) => _memory[address & 0xF_FFFF] = value);
-        _card = new SoundBlaster(_dma, 1, Machine.SampleRate, () => _interrupts++);
+        _wideDma = new DmaController(address => _memory[address & 0xF_FFFF], (address, value) => _memory[address & 0xF_FFFF] = value, wide: true);
+        _card = new SoundBlaster(_dma, 1, Machine.SampleRate, () => _interrupts++, wideDma: _wideDma, wideChannel: 1);
+    }
+
+    /// <summary>
+    /// Sets channel 5 up, the second controller's channel 1, as channel 1 is, through its own
+    /// ports: the address and count in words, the page at 8Bh.
+    /// </summary>
+    private void SetUpChannel5(uint address, int words)
+    {
+        _wideDma.Out(0xD4, 0x05);
+        _wideDma.Out(0xD8, 0);
+        _wideDma.Out(0xD6, 0x49);
+        _wideDma.Out(0xC4, (byte)(address >> 1));
+        _wideDma.Out(0xC4, (byte)(address >> 9));
+        _wideDma.Out(0xC6, (byte)(words - 1));
+        _wideDma.Out(0xC6, (byte)((words - 1) >> 8));
+        _wideDma.Out(0x8B, (byte)(address >> 16));
+        _wideDma.Out(0xD4, 0x01);
     }
 
     /// <summary>Sets channel 1 up on a buffer, as a program does: masked, flip-flop cleared, mode, address, count, page, unmasked.</summary>
@@ -101,6 +120,59 @@ public class SoundBlasterTests
         Assert.True(_dma.Read(1, out byte last));
         Assert.True(_dma.Read(1, out byte wrapped));
         Assert.Equal((0xAA, 0xBB), (last, wrapped));
+    }
+
+    [Fact]
+    public void A_word_channel_moves_words_and_wraps_within_its_128k_page()
+    {
+        // the last word of the page that starts at 2_0000h (page 3's lowest bit is left out), and
+        // the first, where the address wraps
+        _memory[0x3_FFFE] = 0x34;
+        _memory[0x3_FFFF] = 0x12;
+        _memory[0x2_0000] = 0x78;
+        _memory[0x2_0001] = 0x56;
+        SetUpChannel5(0x3_FFFE, 2);
+
+        Assert.True(_wideDma.ReadWord(1, out ushort last));
+        Assert.True(_wideDma.ReadWord(1, out ushort wrapped));
+        Assert.Equal((0x1234, 0x5678), (last, wrapped));
+
+        // two words was the count: the terminal count, shown in the second controller's status
+        Assert.False(_wideDma.Ready(1));
+        Assert.Equal(0x02, _wideDma.In(0xD0) & 0x0F);
+    }
+
+    [Fact]
+    public void A_16_bit_block_plays_signed_samples_and_its_interrupt_is_acknowledged_apart()
+    {
+        // 1,000 signed samples, a square wave at half swing, at 10,000 Hz (41h, high byte first)
+        for (int i = 0; i < 1000; i++)
+        {
+            short sample = (short)((i / 10) % 2 == 0 ? 0x4000 : -0x4000);
+            _memory[0x6000 + (2 * i)] = (byte)sample;
+            _memory[0x6000 + (2 * i) + 1] = (byte)(sample >> 8);
+        }
+
+        SetUpChannel5(0x6000, 1000);
+        Dsp(0x41, 0x27, 0x10, 0xB0, 0x10, (1000 - 1) & 0xFF, (1000 - 1) >> 8);
+        Assert.True(_card.Playing);
+        Assert.InRange(_card.FramesUntilInterrupt, 4409, 4412);
+
+        var mix = new int[2 * 4420];
+        _card.Render(mix);
+        Assert.Equal(1, _interrupts);
+        Assert.False(_card.Playing);
+        Assert.InRange(mix.Take(4000).Max(), 0x3F00, 0x4000);
+        Assert.InRange(mix.Take(4000).Min(), -0x4000, -0x3F00);
+
+        // the 16-bit interrupt is pending, bit 1 of the mixer's 82h; reading 22Eh doesn't
+        // acknowledge it, 22Fh does
+        _card.Write(0x224, 0x82);
+        Assert.Equal(0x02, _card.Read(0x225) & 0x03);
+        _card.Read(0x22E);
+        Assert.Equal(0x02, _card.Read(0x225) & 0x03);
+        _card.Read(0x22F);
+        Assert.Equal(0x00, _card.Read(0x225) & 0x03);
     }
 
     [Fact]

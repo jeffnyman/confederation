@@ -67,13 +67,12 @@ for descriptors, memory, calls down to real mode, and vectors.
 
 With `DATA.DAT` as drive D: ([the CD](the-cd.md)), the game runs from it as GOG runs it. It
 reads its archives from the CD, makes its swap file, loads its sound drivers, and starts its
-opening movie, whose first frame it draws. There it stays. The likely cause is the Sound
-Blaster 16's 16-bit sound, which HMI's driver started and the machine doesn't have yet. *To
-confirm.*
+opening movie. The movie is timed by its sound, 16-bit, which comes through the second DMA
+controller. Without it, the movie stopped on its first frame. With it, the movie plays
+([the sound](the-sound.md)).
 
 Still to come, probably:
 
-- the Sound Blaster 16's 16-bit sound, and the second DMA controller it uses;
 - the floating-point unit (*to confirm*: it hasn't come up yet);
 - VESA, for its 640 by 480 mode, which it manages without;
 - a much faster processor (step 11);

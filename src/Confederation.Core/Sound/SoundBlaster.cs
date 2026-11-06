@@ -5,8 +5,8 @@ namespace Confederation.Core.Sound;
 /// <summary>
 /// The Sound Blaster's digital side: its DSP (digital sound processor) and mixer, with the
 /// samples it plays coming from memory through a DMA channel. The card's FM chip is <see cref="Opl"/>.
-/// Written from DOSBox's <c>sblaster.cpp</c>, as a Sound Blaster 16 (DSP 4.05) at 220h, IRQ 5 and
-/// DMA 1, GOG's settings.
+/// Written from DOSBox's <c>sblaster.cpp</c>, as a Sound Blaster 16 (DSP 4.05) at 220h, IRQ 5,
+/// DMA 1 and the 16-bit DMA 5, GOG's settings.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,8 +31,13 @@ namespace Confederation.Core.Sound;
 /// <see cref="FramesUntilInterrupt"/> and makes the sound up to then.
 /// </para>
 /// <para>
-/// Only 8-bit playing is here, mono and stereo. 16-bit sound (on the second DMA controller),
-/// ADPCM and recording aren't, and the commands for them are logged.
+/// The SB16 also plays 16-bit samples (commands B0h-BFh), which come through the second DMA
+/// controller, a word at a time, on channel 5. Its lengths count samples rather than bytes, and
+/// the end of a block raises the same IRQ, but the program acknowledges it by reading
+/// <c>base+F</c> instead; the mixer's register 82h says which of the two is pending.
+/// </para>
+/// <para>
+/// ADPCM and recording aren't here, and the commands for them are logged.
 /// </para>
 /// </remarks>
 internal sealed class SoundBlaster : ISoundSource
@@ -43,6 +48,8 @@ internal sealed class SoundBlaster : ISoundSource
 
     private readonly DmaController _dma;
     private readonly int _dmaChannel;
+    private readonly DmaController? _wideDma;
+    private readonly int _wideChannel;
     private readonly int _sampleRate;
     private readonly Action _interrupt;
     private readonly Action<string>? _log;
@@ -64,18 +71,27 @@ internal sealed class SoundBlaster : ISoundSource
     private int _bytesLeft;
     private int _length;
     private bool _playing, _paused, _autoInitialize, _stereo, _silence, _exitAutoInitialize;
-    private bool _interruptPending;
-    private bool _signed, _halveRate;
+    private bool _interruptPending, _wideInterruptPending;
+    private bool _signed, _halveRate, _sixteenBit;
 
     // the output: where between the last two samples the output is, and those two
     private long _position;
     private long _step;
     private int _lastLeft, _lastRight, _left16, _right16;
 
-    public SoundBlaster(DmaController dma, int dmaChannel, int sampleRate, Action interrupt, Action<string>? log = null)
+    /// <param name="dma">The first DMA controller, for 8-bit sound.</param>
+    /// <param name="dmaChannel">Its channel, 1.</param>
+    /// <param name="sampleRate">The output's rate.</param>
+    /// <param name="interrupt">Raises the card's IRQ.</param>
+    /// <param name="log">Where to say what isn't done.</param>
+    /// <param name="wideDma">The second DMA controller, for 16-bit sound; without it, 16-bit commands are logged.</param>
+    /// <param name="wideChannel">Its channel, numbered within it: 1 for channel 5.</param>
+    public SoundBlaster(DmaController dma, int dmaChannel, int sampleRate, Action interrupt, Action<string>? log = null, DmaController? wideDma = null, int wideChannel = 1)
     {
         _dma = dma;
         _dmaChannel = dmaChannel;
+        _wideDma = wideDma;
+        _wideChannel = wideChannel;
         _sampleRate = sampleRate;
         _interrupt = interrupt;
         _log = log;
@@ -106,7 +122,8 @@ internal sealed class SoundBlaster : ISoundSource
                 _interruptPending = false;
                 return (byte)(_output.Count > 0 ? 0xFF : 0x7F);
             case 0xF:
-                // acknowledges the 16-bit interrupt, which never comes here
+                // acknowledges the 16-bit interrupt
+                _wideInterruptPending = false;
                 return 0xFF;
             default:
                 return 0xFF;
@@ -150,6 +167,7 @@ internal sealed class SoundBlaster : ISoundSource
         _paused = false;
         _silence = false;
         _interruptPending = false;
+        _wideInterruptPending = false;
         _lastLeft = _lastRight = _left16 = _right16 = 0;
         _output.Enqueue(0xAA);
     }
@@ -226,21 +244,30 @@ internal sealed class SoundBlaster : ISoundSource
                 Start(Word(0) + 1, autoInitialize: false, stereo: false);
                 _silence = true;
                 break;
-            case >= 0xC0 and <= 0xCF:
-                // the SB16's 8-bit commands: bit 2 auto-initialize; the mode's bit 5 stereo and
-                // bit 4 signed samples
-                if ((command & 0x08) != 0)
+            case >= 0xB0 and <= 0xCF:
+                // the SB16's own commands, Bxh 16-bit and Cxh 8-bit: bit 3 recording, bit 2
+                // auto-initialize, bit 1 the FIFO (nothing here); the mode's bit 5 stereo and bit 4
+                // signed samples; then the length, in samples, less one
+                if ((command & 0x08) != 0 || (command < 0xC0 && _wideDma is null))
                 {
                     goto default;
                 }
 
-                Start(Word(1) + 1, autoInitialize: (command & 0x04) != 0, stereo: (_arguments[0] & 0x20) != 0);
+                Start(Word(1) + 1, autoInitialize: (command & 0x04) != 0, stereo: (_arguments[0] & 0x20) != 0, sixteenBit: command < 0xC0);
                 _signed = (_arguments[0] & 0x10) != 0;
                 break;
+            case 0x45:
+            case 0x47:
+                // carry on auto-initializing, after DAh or D9h
+                _exitAutoInitialize = false;
+                break;
             case 0xD0:
+            case 0xD5:
+                // pause the 8-bit or the 16-bit sound, and carry on
                 _paused = true;
                 break;
             case 0xD4:
+            case 0xD6:
                 _paused = false;
                 break;
             case 0xD1:
@@ -250,8 +277,9 @@ internal sealed class SoundBlaster : ISoundSource
             case 0xD8:
                 _output.Enqueue(0xFF);
                 break;
+            case 0xD9:
             case 0xDA:
-                // ends auto-initialize after the block playing
+                // ends auto-initialize after the block playing, 16-bit or 8-bit
                 _exitAutoInitialize = true;
                 break;
             case 0xE0:
@@ -279,6 +307,11 @@ internal sealed class SoundBlaster : ISoundSource
                 // an interrupt, at once: how programs find the card's IRQ
                 RaiseInterrupt();
                 break;
+            case 0xF3:
+                // the 16-bit interrupt, at once
+                _wideInterruptPending = true;
+                _interrupt();
+                break;
             case 0xF8:
                 _output.Enqueue(0);
                 break;
@@ -301,8 +334,9 @@ internal sealed class SoundBlaster : ISoundSource
     // side plays at half of it; the SB16's own commands give the rate of each side
     private void UpdateStep() => _step = (long)_rate * FracOne / _sampleRate / (_halveRate ? 2 : 1);
 
-    private void Start(int length, bool autoInitialize, bool stereo, bool halveRate = false)
+    private void Start(int length, bool autoInitialize, bool stereo, bool halveRate = false, bool sixteenBit = false)
     {
+        _sixteenBit = sixteenBit;
         _halveRate = halveRate;
         UpdateStep();
         _length = length;
@@ -314,14 +348,27 @@ internal sealed class SoundBlaster : ISoundSource
         _signed = false;
         _playing = true;
         _paused = false;
-        _log?.Invoke($"sound blaster: {length} bytes at {_rate / (_halveRate ? 2 : 1)} Hz{(stereo ? ", stereo" : "")}{(autoInitialize ? ", over and over" : "")}");
+        _log?.Invoke($"sound blaster: {length} {(sixteenBit ? "16-bit samples" : "bytes")} at {_rate / (_halveRate ? 2 : 1)} Hz{(stereo ? ", stereo" : "")}{(autoInitialize ? ", over and over" : "")}");
     }
 
     private void RaiseInterrupt()
     {
-        _interruptPending = true;
+        if (_sixteenBit && _playing)
+        {
+            _wideInterruptPending = true;
+        }
+        else
+        {
+            _interruptPending = true;
+        }
+
         _interrupt();
     }
+
+    // where the samples come from: the second controller for 16-bit sound
+    private DmaController Dma => _sixteenBit ? _wideDma! : _dma;
+
+    private int DmaChannel => _sixteenBit ? _wideChannel : _dmaChannel;
 
     /// <summary>
     /// How many more frames of output until the block ends and the interrupt comes, or -1 when
@@ -331,13 +378,13 @@ internal sealed class SoundBlaster : ISoundSource
     {
         get
         {
-            if (!_playing || _paused || (!_silence && !_dma.Ready(_dmaChannel)))
+            if (!_playing || _paused || (!_silence && !Dma.Ready(DmaChannel)))
             {
                 return -1;
             }
 
             // a sample is taken each time the position passes a whole step; the block ends with
-            // the sample that takes its last byte
+            // the sample that takes its last byte (or word)
             int bytesPerSample = _stereo && !_silence ? 2 : 1;
             long samples = (_bytesLeft + bytesPerSample - 1) / bytesPerSample;
             long frames = ((samples * FracOne) - _position + _step - 1) / _step;
@@ -380,6 +427,23 @@ internal sealed class SoundBlaster : ISoundSource
             _left16 = _right16 = 0;
             _bytesLeft--;
         }
+        else if (_sixteenBit)
+        {
+            if (!_wideDma!.ReadWord(_wideChannel, out ushort left))
+            {
+                return;
+            }
+
+            _bytesLeft--;
+            ushort right = left;
+            if (_stereo && _bytesLeft > 0 && _wideDma.ReadWord(_wideChannel, out right))
+            {
+                _bytesLeft--;
+            }
+
+            _left16 = Sample(left);
+            _right16 = Sample(right);
+        }
         else
         {
             if (!_dma.Read(_dmaChannel, out byte left))
@@ -419,6 +483,8 @@ internal sealed class SoundBlaster : ISoundSource
 
     private int Sample(byte value) => _signed ? (sbyte)value << 8 : (value - 128) << 8;
 
+    private int Sample(ushort value) => _signed ? (short)value : value - 32768;
+
     private void ResetMixer()
     {
         Array.Clear(_mixer);
@@ -430,8 +496,8 @@ internal sealed class SoundBlaster : ISoundSource
 
     private byte ReadMixer() => _mixerIndex switch
     {
-        // which interrupts are pending: bit 0 the 8-bit one
-        0x82 => (byte)(_interruptPending ? 0x01 : 0x00),
+        // which interrupts are pending: bit 0 the 8-bit one, bit 1 the 16-bit one
+        0x82 => (byte)((_interruptPending ? 0x01 : 0x00) | (_wideInterruptPending ? 0x02 : 0x00)),
         _ => _mixer[_mixerIndex],
     };
 

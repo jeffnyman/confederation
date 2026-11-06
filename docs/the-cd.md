@@ -102,13 +102,11 @@ and 40,000 cycles:
 8. It began its opening movie: it read `CD1MOVIE.TRE` in 64 KB pieces and drew the first frame,
    a planet in space.
 
-It then stays on that frame. It reads no more, checks the keyboard now and then, and otherwise
-runs in protected mode, at 40,000 cycles as at 20,000. Just before, HMI's driver started 16-bit
-sound on the Sound Blaster 16: DSP command B4h and the second DMA controller's ports (C4h–D8h,
-for channel 5), none of which the machine has yet. A movie is usually timed by its sound, so
-the likely cause is that the 16-bit sound never plays, and its interrupt never comes. *To
-confirm.* Reporting an older Sound Blaster didn't change anything, because the driver goes by
-the card chosen in the game's setup, not by the card's version.
+At first it stayed on that frame. Just before it, HMI's driver had started 16-bit sound on the
+Sound Blaster 16, through the second DMA controller, which the machine didn't have yet. The movie
+is timed by its sound, so it waited for an interrupt that never came. With the 16-bit sound in
+place ([the sound](the-sound.md)), the movie plays: the planet, Origin's logo, and the title,
+*Heart of the Tiger*, with its sound.
 
 ## Checking it
 

@@ -250,6 +250,12 @@ page register that doesn't count, so a transfer can't cross a 64 KB boundary: it
 page. That's why DOS programs of the time align their sound buffers carefully. Its 16-bit registers
 are written and read a byte at a time, low then high, through a flip-flop.
 
+The AT added a **second 8237** for 16-bit transfers, channels 4 to 7, and the same class plays it
+(`wide: true`). Its registers are at every other port from C0h to DEh, and its page registers at
+8Fh, 8Bh, 89h and 8Ah. It moves a word at a time and counts in words. Its address is a word's, so
+the byte address is twice it, and the page register's lowest bit is left out: a transfer wraps
+within 128 KB.
+
 ### The interrupt, on time
 
 At the end of a block the DSP raises its interrupt, and that's what keeps speech going: *Wing
@@ -285,11 +291,27 @@ a third of a second each. Its interrupt handler starts each block the moment the
 within a tenth of a millisecond of machine time. In the log, every block is a line such as
 `sound blaster: 4000 bytes at 10752 Hz`.
 
+### 16-bit sound
+
+The SB16 also plays 16-bit samples, through DMA channel 5 on the second controller. Its commands
+are B0h-BFh, laid out as the 8-bit Cxh ones are: bit 3 recording, bit 2 auto-initialize, bit 1 the
+FIFO (which changes nothing here). A mode byte follows, whose bit 5 is stereo and bit 4 signed
+samples, and then the length, in samples less one, not bytes. D5h and D6h pause and continue it,
+and D9h ends auto-initialize, as D0h, D4h and DAh do for 8-bit sound.
+
+Its interrupt is the same IRQ, 5, but the program acknowledges it differently: by reading 22Fh,
+not 22Eh. The mixer's register 82h tells the two apart, bit 0 for an 8-bit interrupt and bit 1
+for a 16-bit one. A handler reads it to know which port to read.
+
+*Wing Commander III*'s sound driver, HMI's, plays its movies' sound this way: blocks of 4,096
+signed 16-bit samples at 22,050 Hz, mono, auto-initializing (command B4h; observed). Its movies
+are timed by that sound. Before the machine had it, the opening movie stopped on its first frame,
+waiting for an interrupt that never came. With it, the movie plays.
+
 ### Not done
 
-16-bit sound (on the AT's second DMA controller), the ADPCM-compressed formats, recording, and the
-SB16's mixer's volume controls. Nothing *Wing Commander II* has asked for so far needs them (only its
-opening has been run). The commands are logged if a program uses them.
+The ADPCM-compressed formats, recording, and the SB16's mixer's volume controls. Nothing the games
+have asked for so far needs them. The commands are logged if a program uses them.
 
 ## Still to come
 

@@ -348,6 +348,14 @@ public sealed partial class Machine : ICpuBus
                 // the DMA controller's addresses and counts move as the sound plays
                 UpdateSound();
                 return _dma.In(port);
+            case >= 0xC0 and <= 0xDF:
+            case 0x89:
+            case 0x8A:
+            case 0x8B:
+            case 0x8F:
+                // the second DMA controller, for 16-bit transfers, and its page registers
+                UpdateSound();
+                return _wideDma.In(port);
             case >= 0x3C0 and <= 0x3CF:
             case 0x3D4:
             case 0x3D5:
@@ -418,6 +426,15 @@ public sealed partial class Machine : ICpuBus
             case 0x87:
                 UpdateSound();
                 _dma.Out(port, value);
+                ScheduleSoundEvent();
+                break;
+            case >= 0xC0 and <= 0xDF:
+            case 0x89:
+            case 0x8A:
+            case 0x8B:
+            case 0x8F:
+                UpdateSound();
+                _wideDma.Out(port, value);
                 ScheduleSoundEvent();
                 break;
             case >= 0x3C0 and <= 0x3CF:

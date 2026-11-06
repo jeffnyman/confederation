@@ -91,6 +91,9 @@ public sealed class CdTests : IDisposable
         Assert.Contains(_log, line => line.StartsWith(@"21/3D open .\GLOBALS.IFF (read): handle 5, 174758 bytes, on the CD", StringComparison.Ordinal));
         Assert.Contains(_log, line => line.StartsWith("21/3D open D:CD1MOVIE.TRE (read)", StringComparison.Ordinal));
         Assert.Contains("2F/1500 MSCDEX: ax 1500 bx 0001 cx 0003", _log);
+
+        // its movie's sound, 16-bit, through the second DMA controller
+        Assert.Contains("sound blaster: 4096 16-bit samples at 22050 Hz, over and over", _log);
     }
 
     /// <summary>
