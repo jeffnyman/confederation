@@ -16,6 +16,7 @@ mission disks:
 |---|---|---|
 | `Wing Commander` | `WC.EXE`, `SM2.EXE` | `wc1`, `sm1`, `sm2` |
 | `Wing Commander II` | `WC2.EXE`, `SO1.EXE`, `SO2.EXE` | `wc2`, `so1`, `so2` |
+| `Wing Commander III - Heart of the Tiger` | `WC3.EXE`, on the CD image `DATA.DAT` | `wc3` |
 
 The programs in a folder share more than the folder. They read the same configuration file, the
 one the game's installer wrote (`WINGCMDR.CFG` or `WC2.CFG`, where the music device is chosen).
@@ -26,6 +27,12 @@ Operations* to it too, as running its installer would have.
 
 *The Secret Missions* (the first) has no program of its own. Once installed, it's a choice in
 *Wing Commander*'s campaign menu, so `sm1` starts `WC.EXE`, and the player says where to find it.
+
+*Wing Commander III* is a series of one, and its folder holds no program: `WC3.EXE` is on the
+CD. The player knows the folder by its CD image instead, `DATA.DAT`, once it has checked the
+image's volume name, `WC3_CD1`, in its primary volume descriptor ([the CD](the-cd.md)). The image
+goes in as drive D:, and the game runs from there, as GOG runs it. Its installer's settings,
+`WC3\WC3.CFG`, are binary rather than a line of words, so `--music` leaves them alone and says so.
 
 ## The settings file
 

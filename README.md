@@ -17,14 +17,17 @@ The CPU is done: a 386 in real mode that matches a real chip across 1.76 million
 instructions. DOS, the BIOS, expanded memory, the timer, the VGA, the keyboard and the joystick
 port are answered well enough that *Wing Commander* plays in a window, by keyboard or gamepad,
 with its music on an emulated AdLib or, given Roland's ROMs, an MT-32. *Wing Commander II* speaks
-through an emulated Sound Blaster, and flies its first mission. [ROADMAP.md](ROADMAP.md) lays out the order of work.
+through an emulated Sound Blaster, and flies its first mission. *Wing Commander III* runs in
+protected mode from its CD image, plays its opening movie with its sound, and reaches its first
+screen. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 ```
 dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
 ```
 
 After that once, the game has a short name: `wc1`, `sm1` and `sm2` for *Wing Commander* and its
-*Secret Missions*, `wc2`, `so1` and `so2` for *Wing Commander II* and its *Special Operations*.
+*Secret Missions*, `wc2`, `so1` and `so2` for *Wing Commander II* and its *Special Operations*,
+`wc3` for *Wing Commander III*.
 With no game named, a menu lists them, and a game's folder dropped on its window sets it up.
 `--remember` keeps a run's options as the game's own, and `--list` shows what's set up.
 

@@ -69,11 +69,25 @@ With `DATA.DAT` as drive D: ([the CD](the-cd.md)), the game runs from it as GOG 
 reads its archives from the CD, makes its swap file, loads its sound drivers, and starts its
 opening movie. The movie is timed by its sound, 16-bit, which comes through the second DMA
 controller. Without it, the movie stopped on its first frame. With it, the movie plays
-([the sound](the-sound.md)).
+([the sound](the-sound.md)): the planet, Origin's logo, the title, and the credits over a burning
+world. Esc skips it, and the game comes to its first screen, the hangar, with its mouse pointer
+(observed).
+
+While a movie plays, the game calls DOS's function 0Ch with AL=0Bh about 10,000 times a second,
+from protected mode through the DPMI host. 0Ch empties the keyboard's buffer and then runs the
+input function in AL. 0Bh isn't one DOS runs there, so the call only empties the buffer. Each
+call was logged on its way down, nearly half a million lines a minute, so the host leaves DOS's
+keyboard checks (06h, 0Bh, 0Ch) out of its log, as DOS leaves them out of its own.
+
+## In the player
+
+The player knows the game as `wc3`, from GOG's folder, by its CD image
+([profiles and the menu](profiles-and-the-menu.md)). It puts `DATA.DAT` in as D:, runs
+`D:\WC3.EXE` at 30,000 cycles ([the player](the-player.md#speed)), and has the game's own icon.
 
 Still to come, probably:
 
 - the floating-point unit (*to confirm*: it hasn't come up yet);
 - VESA, for its 640 by 480 mode, which it manages without;
 - a much faster processor (step 11);
-- the player knowing the game, which so far is run by a test harness.
+- everything past the hangar, untried so far.

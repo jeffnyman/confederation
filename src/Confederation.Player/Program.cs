@@ -289,6 +289,11 @@ internal static class Program
             Log = log is null ? null : log.WriteLine,
             Mouse = (profile.Mouse ?? true) && !headless,
         };
+        if (game.Cd is not null)
+        {
+            Console.WriteLine($"confederation: the CD, {machine.InsertCd(game.Cd)}, from {game.Cd}, as D:");
+        }
+
         if (overhaulData is not null)
         {
             machine.Mount(game.Overhaul!.GameDirectory, overhaulData);
@@ -297,7 +302,15 @@ internal static class Program
 
         if (profile.Music is { } music)
         {
-            Games.SetMusic(game, saves, music);
+            if (game.Config is null)
+            {
+                // Wing Commander III chooses its music in its own setup
+                Error($"the player can't set {game.Title}'s music: it's chosen in the game's own setup");
+            }
+            else
+            {
+                Games.SetMusic(game, saves, music);
+            }
         }
 
         if (sound && Games.MusicOf(game, saves) == Music.Roland)
@@ -319,7 +332,7 @@ internal static class Program
         }
 
         bool cheats = profile.Cheats ?? false;
-        machine.Load(game.Program, Games.Arguments(cheats, arguments));
+        machine.Load(game.Start, Games.Arguments(cheats, arguments));
         statePath ??= Games.StateFile(game);
         if (resume)
         {
@@ -418,8 +431,8 @@ internal static class Program
             Console.WriteLine($"  played with {settings.ProfileOf(series)}");
             foreach (var game in Games.Known.Where(game => game.Series == series))
             {
-                bool there = File.Exists(Path.Combine(folder, game.Program));
-                string note = !there ? $"  (no {game.Program})" : game.Note is { } n ? $"  ({n})" : "";
+                string missing = series.Cd is { } cd ? cd.Image : game.Program;
+                string note = !Games.IsIn(folder, game) ? $"  (no {missing})" : game.Note is { } n ? $"  ({n})" : "";
                 Console.WriteLine($"  {game.Name}  {game.Title}{note}");
             }
         }
@@ -434,7 +447,8 @@ internal static class Program
 
               [game]             a game's short name: wc1, sm1 or sm2 (Wing Commander and its
                                  Secret Missions), wc2, so1 or so2 (Wing Commander II and its
-                                 Special Operations); or its folder, or its program. A folder
+                                 Special Operations), wc3 (Wing Commander III, from GOG's CD
+                                 image, DATA.DAT); or its folder, or its program. A folder
                                  given once is remembered, so the short names find it after.
                                  Or W.C.A.T.'s folder, which runs its launcher, with the series
                                  set up for its data. With no game, a menu in a window lists them.
@@ -452,7 +466,8 @@ internal static class Program
               --saves <folder>   where the game's writes go (by default a folder of its own in the
                                  user's application data); the game's folder is never written
               --cycles <n>       instructions a millisecond, as DOSBox counts cycles: the game's own
-                                 by default, 4000 for Wing Commander and 8000 for Wing Commander II
+                                 by default, 4000 for Wing Commander, 8000 for Wing Commander II,
+                                 30000 for Wing Commander III
               --scale <n>        the window's first size, n times the picture (3)
               --fullscreen       start in full screen (--windowed: in a window)
               --square-pixels    square pixels, not the 4:3 picture a monitor showed

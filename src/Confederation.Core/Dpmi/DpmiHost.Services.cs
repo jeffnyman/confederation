@@ -623,8 +623,14 @@ internal sealed partial class DpmiHost
         uint parameters = Cpu.SegmentBase(Intel386.SS) + StackPointer() + (3 * (_client32 ? 4u : 2u));
         uint clientFlags = ReadFrameValue(FrameFlags());
         string target = function == 0x0300 ? $"INT {vector:X2}h" : $"{Read16(structure + StructCs):X4}:{Read16(structure + StructIp):X4}";
-        machine.Trace($"31/{function:X4} {target} ax {Read16(structure + 0x1C):X4} bx {Read16(structure + 0x10):X4} " +
-            $"cx {Read16(structure + 0x18):X4} dx {Read16(structure + 0x14):X4} ds {Read16(structure + StructDs):X4} es {Read16(structure + StructEs):X4}");
+        // DOS's keyboard checks, which a game polls thousands of times a second (Wing Commander
+        // III's movies do, with 0C0Bh), are left out, as DOS leaves them out of its own log
+        byte ah = (byte)(Read16(structure + 0x1C) >> 8);
+        if (function != 0x0300 || vector != 0x21 || ah is not (0x06 or 0x0B or 0x0C))
+        {
+            machine.Trace($"31/{function:X4} {target} ax {Read16(structure + 0x1C):X4} bx {Read16(structure + 0x10):X4} " +
+                $"cx {Read16(structure + 0x18):X4} dx {Read16(structure + 0x14):X4} ds {Read16(structure + StructDs):X4} es {Read16(structure + StructEs):X4}");
+        }
 
         Save(PendingKind.RealCall, vector, structure);
         uint flags = (Read16(structure + StructFlags) & ~InterruptFlag) | (clientFlags & InterruptFlag);

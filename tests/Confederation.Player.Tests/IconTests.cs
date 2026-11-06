@@ -10,6 +10,7 @@ public sealed class IconTests
     [InlineData("wc2")]
     [InlineData("so1")]
     [InlineData("so2")]
+    [InlineData("wc3")]
     public void Every_game_has_its_icon(string name)
     {
         var known = Games.Named(name)!;

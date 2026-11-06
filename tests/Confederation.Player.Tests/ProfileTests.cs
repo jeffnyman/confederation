@@ -236,7 +236,7 @@ public sealed class ProfileTests : IDisposable
     }
 
     /// <summary>An MZ executable around code that starts at its first byte, as in the core's DOS tests.</summary>
-    private static byte[] Exe(byte[] code)
+    internal static byte[] Exe(byte[] code)
     {
         int total = 32 + code.Length;
         var exe = new byte[total];

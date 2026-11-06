@@ -67,9 +67,9 @@ internal sealed unsafe class SdlMenu : IDisposable
 
     private bool Playable(KnownGame game) => Folder(game) is not null;
 
-    // the game's folder, when its series is set up and its program is there
+    // the game's folder, when its series is set up and its program (or CD) is there
     private string? Folder(KnownGame game)
-        => _settings.FolderOf(game.Series) is { } folder && File.Exists(Path.Combine(folder, game.Program)) ? folder : null;
+        => _settings.FolderOf(game.Series) is { } folder && Games.IsIn(folder, game) ? folder : null;
 
     private Game? Run()
     {
