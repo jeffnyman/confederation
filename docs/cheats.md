@@ -51,14 +51,18 @@ key just pressed. **Observed** in `WC.EXE` and `WC2.EXE`:
   the Del above the arrows and the Del on the number pad are the same key to them, 53h. Ins is
   52h either way.
 - **Wing Commander:** Alt+Del destroys the target. With nothing targeted, it falls back on
-  another ship the game keeps track of; with neither, nothing happens. There's no Alt+Ins: Ins
+  another ship the game keeps track of; with neither, nothing happens. A guide warns that Alt+Del
+  without a target blows up the player's own ship, which would make that other ship the
+  player's: **to confirm**, so target first. There's no Alt+Ins, whatever the guides say: Ins
   is the roll, Alt or not.
 - **Wing Commander II:** Alt+Del destroys the target, and does nothing without one. Alt+Ins goes
   through the ships in flight, but for the first, and destroys each of one kind (kind 0Ch) that
   isn't on the player's side. The guides' "the enemy fighters" fits; what kind 0Ch is, is **to
   confirm**.
 - **More keys:** the same switches take Alt+M, Alt+J and Alt+Z in Wing Commander, and Alt+M,
-  Alt+I, Alt+O and Alt+Z in Wing Commander II. What they do is **to find out**.
+  Alt+I, Alt+O and Alt+Z in Wing Commander II. In Wing Commander II, Alt+I and Ctrl+I each call
+  one of two routines and then show a number in the cockpit, which fits a guide's "cycles the
+  enemy's intelligence" (**to confirm**). The rest is **to find out**.
 
 **Played** in Confederation: Alt+Del destroys the target in Wing Commander. Without a target, or
 without the cheats, Del is only the roll, which looks like the cheat failing.
