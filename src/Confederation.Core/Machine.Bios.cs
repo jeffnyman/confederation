@@ -15,6 +15,9 @@ public sealed partial class Machine
     private const ushort KeyboardHandler = 0x0510;
     private const ushort ConfigurationTable = 0x0540;
 
+    /// <summary>Four zero bytes in the BIOS area, for DOS's answers that point at an empty table.</summary>
+    internal const ushort EmptyTable = 0x05F0;
+
     // the ticks in a day: the timer's 18.2 a second for 24 hours
     private const uint TicksPerDay = 0x1800B0;
 
@@ -309,6 +312,10 @@ public sealed partial class Machine
             case 0x12:
                 SetAl(ReadByte(0x40, 0x17));
                 break;
+            case 0x03:
+                // the keys' repeat rate and delay: the host's keyboard repeats keys its own way
+                Trace($"16/03 typematic rate {Cpu.Ebx & 0xFFFF:X4}h");
+                break;
             default:
                 throw new NotSupportedException($"INT 16h function {Ah:X2}h isn't provided.");
         }
@@ -348,6 +355,13 @@ public sealed partial class Machine
     /// </summary>
     private void MultiplexService()
     {
+        if ((ushort)Cpu.Eax == 0x1687)
+        {
+            // a DPMI host: the machine's own
+            _dpmi.Detect();
+            return;
+        }
+
         Trace($"2F/{(ushort)Cpu.Eax:X4} nothing installed");
         if (Al == 0x00)
         {

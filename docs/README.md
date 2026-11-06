@@ -49,5 +49,9 @@ games.
 12. [Cheats](cheats.md): the words Origin left in both games, how two runs of a deterministic
     machine, compared byte for byte, showed the games take them, and how the flags led to the
     games' own cheat keys in their code.
+13. [The DPMI host](the-dpmi-host.md): the three ways a DOS extender gets into protected mode and
+    why Confederation offers one, a host that switches modes by saving and restoring the
+    processor rather than running code, the three paths an interrupt can take, and what W.C.A.T.'s
+    launcher needed on its way to its first screen.
 
 More notes will follow as the work does, and each game as it comes up.

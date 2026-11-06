@@ -93,8 +93,8 @@ Three more things come with it:
   push an **error code** too, usually the selector at fault, so a handler can tell what went wrong.
 
 What isn't emulated yet, each stopping the machine with a message if a program asks for it:
-paging, virtual-8086 mode, task switches, and call gates. The DPMI host the games will use (step 9b)
-doesn't need them.
+paging, virtual-8086 mode, task switches, and call gates. The [DPMI host](the-dpmi-host.md) the
+games use doesn't need them.
 
 ## How the code is organized
 

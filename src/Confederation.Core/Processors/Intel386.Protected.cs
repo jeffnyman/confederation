@@ -525,6 +525,17 @@ public sealed partial class Intel386
             throw Fault(Vector.SegmentNotPresent, gateCode);
         }
 
+        EnterGate(gate, returnIp, errorCode, external);
+    }
+
+    /// <summary>
+    /// Goes through an interrupt or trap gate to its handler, once the gate itself has passed its
+    /// checks: the handler's code segment checked, the stack switched if the handler is more
+    /// privileged, and the return frame pushed.
+    /// </summary>
+    private void EnterGate(Descriptor gate, uint returnIp, int errorCode, int external)
+    {
+        int type = gate.SystemType;
         ushort selector = gate.GateSelector;
         int index = selector & 0xFFFC;
         if (index == 0)
@@ -634,7 +645,7 @@ public sealed partial class Intel386
             : ((ushort)(_bus.Read(address + 2) | (_bus.Read(address + 3) << 8)), (uint)(_bus.Read(address) | (_bus.Read(address + 1) << 8)));
     }
 
-    private readonly record struct SegmentCache(ushort Selector, uint Base, uint Limit, byte Access, bool Big, SegmentUse Use);
+    internal readonly record struct SegmentCache(ushort Selector, uint Base, uint Limit, byte Access, bool Big, SegmentUse Use);
 
     private SegmentCache SaveCache(int segment)
         => new(_selectors[segment], _bases[segment], _limits[segment], _access[segment], _big[segment], _use[segment]);
@@ -995,6 +1006,152 @@ public sealed partial class Intel386
         else
         {
             Set(Flag.Zero, false);
+        }
+    }
+
+    // ---- for the DPMI host -------------------------------------------------------------------
+
+    /// <summary>
+    /// The processor's state as a program sees it: the registers, the flags, the mode, the
+    /// privilege level, every segment register's descriptor cache, and the interrupt table, which
+    /// differs between the modes. The machine's DPMI host
+    /// switches between real and protected mode by saving one and restoring another, so the
+    /// switch runs no code of its own.
+    /// </summary>
+    internal sealed class Context
+    {
+        internal readonly uint[] Registers = new uint[8];
+        internal readonly SegmentCache[] Segments = new SegmentCache[6];
+        internal uint Eip;
+        internal uint Flags;
+        internal uint Cr0;
+        internal int Cpl;
+        internal uint IdtBase;
+        internal uint IdtLimit;
+
+        public bool ProtectedMode => (Cr0 & 1) != 0;
+
+        public ushort Ss => Segments[SS].Selector;
+
+        public uint Esp => Registers[ESP];
+    }
+
+    /// <summary>The processor's state, to go back to later with <see cref="RestoreContext"/>.</summary>
+    internal Context SaveContext()
+    {
+        var context = new Context { Eip = _eip, Flags = _flags, Cr0 = Cr0, Cpl = _cpl, IdtBase = _idtBase, IdtLimit = _idtLimit };
+        _regs.CopyTo(context.Registers, 0);
+        for (int segment = 0; segment < 6; segment++)
+        {
+            context.Segments[segment] = SaveCache(segment);
+        }
+
+        return context;
+    }
+
+    /// <summary>Puts back a state <see cref="SaveContext"/> took, mode and all.</summary>
+    internal void RestoreContext(Context context)
+    {
+        context.Registers.CopyTo(_regs, 0);
+        _eip = context.Eip;
+        _flags = context.Flags;
+        Cr0 = context.Cr0;
+        _cpl = context.Cpl;
+        (_idtBase, _idtLimit) = (context.IdtBase, context.IdtLimit);
+        for (int segment = 0; segment < 6; segment++)
+        {
+            RestoreCache(segment, context.Segments[segment]);
+        }
+
+        Halted = false;
+    }
+
+    /// <summary>
+    /// Switches to real mode with every segment register's cache as after reset: base 0, a
+    /// 64 KB limit, 16-bit. The caller loads the segments and the registers.
+    /// </summary>
+    internal void EnterRealMode()
+    {
+        Cr0 &= ~1u;
+        _cpl = 0;
+        for (int segment = 0; segment < 6; segment++)
+        {
+            RestoreCache(segment, new SegmentCache(0, 0, 0xFFFF, segment == CS ? (byte)0x9B : (byte)0x93, false, SegmentUse.ReadWrite));
+        }
+
+        Halted = false;
+    }
+
+    /// <summary>
+    /// Switches to protected mode at privilege level 0, leaving the segment caches as they are.
+    /// The caller loads the segments with <see cref="TryLoadSelector"/>, CS first: its RPL
+    /// becomes the privilege level, which the stack's must match.
+    /// </summary>
+    internal void EnterProtectedMode()
+    {
+        Cr0 |= 1;
+        _cpl = 0;
+        Halted = false;
+    }
+
+    /// <summary>
+    /// Loads a segment register in protected mode with the processor's checks (CS without them,
+    /// taking its RPL as the new privilege level); false, and nothing loaded, if they fail.
+    /// </summary>
+    internal bool TryLoadSelector(int segment, ushort selector)
+    {
+        try
+        {
+            LoadProtectedSegment(segment, selector);
+            return true;
+        }
+        catch (CpuFault)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Loads the local descriptor table and the task register, as LLDT and LTR would at level 0.</summary>
+    internal void LoadSystemTables(ushort ldt, ushort task)
+    {
+        try
+        {
+            LoadLdt(ldt);
+            LoadTaskRegister(task);
+        }
+        catch (CpuFault fault)
+        {
+            throw new InvalidOperationException($"The system tables wouldn't load: fault {fault.Vector}, error {fault.ErrorCode:X4}h.");
+        }
+    }
+
+    /// <summary>A segment register's base, from its descriptor cache.</summary>
+    internal uint SegmentBase(int segment) => _bases[segment];
+
+    /// <summary>Whether a segment register holds a 32-bit segment: code defaulting to 32 bits, or a stack addressed by ESP.</summary>
+    internal bool SegmentBig(int segment) => _big[segment];
+
+    /// <summary>
+    /// Takes an interrupt into a handler as if through an interrupt gate, without one in the
+    /// table: how the DPMI host calls a program's handler for a hardware interrupt, whose vector
+    /// in the table belongs to an exception. A fault on the way is raised as usual.
+    /// </summary>
+    internal void InterruptThrough(ushort selector, uint offset, bool gate32)
+    {
+        Halted = false;
+        _start = _eip;
+        _startEsp = _regs[ESP];
+        uint type = gate32 ? (uint)SystemType.InterruptGate32 : (uint)SystemType.InterruptGate16;
+        var gate = new Descriptor(((uint)selector << 16) | (offset & 0xFFFF), (offset & 0xFFFF_0000) | 0x8000 | (3u << 13) | (type << 8));
+        try
+        {
+            EnterGate(gate, _eip, -1, 1);
+        }
+        catch (CpuFault fault)
+        {
+            _regs[ESP] = _startEsp;
+            LastFault = fault.Vector;
+            RaiseFault(fault);
         }
     }
 }

@@ -80,7 +80,7 @@ public sealed partial class Intel386
 
     /// <summary>What may be done through a segment register.</summary>
     [Flags]
-    private enum SegmentUse : byte
+    internal enum SegmentUse : byte
     {
         // a null selector in a data segment register: loading it is allowed, using it isn't
         None = 0,

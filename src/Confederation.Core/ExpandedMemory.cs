@@ -130,6 +130,11 @@ internal sealed class ExpandedMemory(Machine machine)
                 machine.Cpu.Ecx = (machine.Cpu.Ecx & 0xFFFF_0000) | 4;
                 Status(0);
                 break;
+            case 0xDE:
+                // VCPI, the other way into protected mode, which the machine doesn't offer: DOS
+                // extenders that ask for it first (PMODE/W does) go on to its DPMI host instead
+                Status(0x84);
+                break;
             default:
                 throw new NotSupportedException($"INT 67h function {function:X2}h (AL={Al:X2}h) isn't provided.");
         }

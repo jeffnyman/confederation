@@ -18,7 +18,7 @@ internal readonly struct Registers(Machine machine)
 
     public ushort Dx { get => (ushort)Cpu.Edx; set => Cpu.Edx = (Cpu.Edx & 0xFFFF_0000) | value; }
 
-    public ushort Si => (ushort)Cpu.Esi;
+    public ushort Si { get => (ushort)Cpu.Esi; set => Cpu.Esi = (Cpu.Esi & 0xFFFF_0000) | value; }
 
     public ushort Di => (ushort)Cpu.Edi;
 

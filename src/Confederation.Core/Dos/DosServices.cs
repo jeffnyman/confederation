@@ -163,6 +163,7 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
         FlushConsole();
         machine.ExitCode = code;
         machine.Exited = true;
+        machine.ProgramEnded();
         machine.Trace($"exit {code}");
     }
 
@@ -296,6 +297,28 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
 
         return null;
     }
+
+    // ---- for the DPMI host ------------------------------------------------------------------
+
+    /// <summary>The running program's PSP segment.</summary>
+    internal ushort Psp => _psp;
+
+    /// <summary>Allocates conventional memory for the program, as function 48h would; null, with the largest block free, when it can't.</summary>
+    internal ushort? AllocateBlock(int paragraphs, out int largest)
+    {
+        ushort? segment = Allocate(paragraphs, _psp);
+        largest = segment is null ? LargestFree() : 0;
+        return segment;
+    }
+
+    /// <summary>Whether a segment begins an allocated block.</summary>
+    internal bool IsAllocated(ushort segment) => IsBlock(segment);
+
+    /// <summary>Frees a block, as function 49h would.</summary>
+    internal void FreeBlock(ushort segment) => Free(segment);
+
+    /// <summary>Resizes a block, as function 4Ah would: null if it could, or the most it could have been.</summary>
+    internal int? ResizeBlock(ushort segment, int paragraphs) => Resize(segment, paragraphs);
 
     // ---- INT 21h -----------------------------------------------------------------------------
 
@@ -479,6 +502,20 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
                 cpu.Ax = (ushort)_lastError;
                 cpu.Bx = 0x0104;
                 cpu.Ch = 1;
+                break;
+            case 0x63 when cpu.Al == 0x00:
+                // the double-byte character set's lead bytes, which Watcom's runtime asks for:
+                // none, an empty table, as DOS gives for a Western country
+                cpu.Ds = Machine.BiosSegment;
+                cpu.Si = Machine.EmptyTable;
+                cpu.Al = 0;
+                Ok();
+                break;
+            case 0x66 when cpu.Al == 0x01:
+                // the code page, active and the system's: 437, the PC's own
+                cpu.Bx = 437;
+                cpu.Dx = 437;
+                Ok();
                 break;
             case 0x67:
             case 0x68:

@@ -1,20 +1,23 @@
 using Confederation.Core.Devices;
 using Confederation.Core.Dos;
+using Confederation.Core.Dpmi;
 using Confederation.Core.Processors;
 
 namespace Confederation.Core;
 
 /// <summary>
-/// The PC a game runs on: a 386 in real mode, memory, the I/O ports, and a BIOS, DOS and
-/// expanded-memory manager answered in C# instead of loaded as code.
+/// The PC a game runs on: a 386, memory, the I/O ports, and a BIOS, DOS, an expanded-memory
+/// manager and a DPMI host for protected-mode programs, all answered in C# instead of loaded as
+/// code.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The memory map is the PC's. The first 640 KB is conventional memory, holding the interrupt
 /// table, the BIOS data area, DOS's memory arena and the program. The video memory sits at
-/// A0000h, expanded memory's 64 KB page frame at E0000h, and the BIOS at F0000h. The 64 KB above
-/// 1 MB (the high memory area) is reachable only while the A20 gate is open; while it's closed,
-/// addresses wrap at 1 MB as on the 8086.
+/// A0000h, expanded memory's 64 KB page frame at E0000h, and the BIOS at F0000h. The memory past
+/// 1 MB, to 16 MB, is reachable only while the A20 gate is open; while it's closed, addresses wrap
+/// at 1 MB as on the 8086. The DPMI host keeps its tables just past the first 64 KB of it, and
+/// hands out the rest to protected-mode programs.
 /// </para>
 /// <para>
 /// Nothing in the machine is loaded from a real BIOS or DOS. Each interrupt they would answer
@@ -28,13 +31,19 @@ public sealed partial class Machine : ICpuBus
     /// <summary>The segment of the BIOS area, where the service stubs live.</summary>
     internal const ushort BiosSegment = 0xF000;
 
-    private const uint HighMemoryEnd = 0x11_0000;
+    /// <summary>
+    /// The machine's memory: 16 MB, enough for the protected-mode games (<i>Wing Commander III</i>
+    /// asks for 8). Past the first megabyte it's reachable only while the A20 gate is open.
+    /// </summary>
+    internal const uint MemorySize = 0x100_0000;
+
     private const uint PageFrame = 0xE_0000;
     private const uint VideoMemory = 0xA_0000;
 
-    private readonly byte[] _memory = new byte[HighMemoryEnd];
+    private readonly byte[] _memory = new byte[MemorySize];
     private readonly ExpandedMemory _ems;
     private readonly DosServices _dos;
+    private readonly DpmiHost _dpmi;
     private readonly InterruptController _pic = new();
     private readonly IntervalTimer _timer = new();
     private readonly Vga _vga = new();
@@ -62,8 +71,10 @@ public sealed partial class Machine : ICpuBus
         _keyboard.Interrupt += () => _pic.Raise(1);
         _ems = new ExpandedMemory(this);
         _dos = new DosServices(this, new DosDrive(gameFolder, saveFolder));
+        _dpmi = new DpmiHost(this, _dos);
         InstallBios();
         _ems.Install();
+        _dpmi.Install();
         InstallSound();
     }
 
@@ -177,7 +188,17 @@ public sealed partial class Machine : ICpuBus
             _keyboard.Update();
             if (_pic.HasInterrupt && Cpu.InterruptsEnabled)
             {
-                Cpu.Interrupt(_pic.Acknowledge());
+                int vector = _pic.Acknowledge();
+                if (Cpu.ProtectedMode && _dpmi.Active)
+                {
+                    // in protected mode the vector's place in the table is an exception's: the
+                    // DPMI host delivers it to the program's handler, or down to real mode
+                    _dpmi.HardwareInterrupt(vector);
+                }
+                else
+                {
+                    Cpu.Interrupt(vector);
+                }
             }
         }
 
@@ -217,7 +238,7 @@ public sealed partial class Machine : ICpuBus
             return _ems.Read(address - PageFrame);
         }
 
-        return _memory[address];
+        return address < MemorySize ? _memory[address] : (byte)0xFF;
     }
 
     /// <inheritdoc/>
@@ -232,7 +253,7 @@ public sealed partial class Machine : ICpuBus
         {
             _ems.Write(address - PageFrame, value);
         }
-        else if (address < 0xF_0000 || address >= 0x10_0000)
+        else if (address < 0xF_0000 || (address >= 0x10_0000 && address < MemorySize))
         {
             // the BIOS is ROM
             _memory[address] = value;
@@ -377,7 +398,11 @@ public sealed partial class Machine : ICpuBus
         }
     }
 
-    private uint Wrap(uint address) => A20 ? (address < HighMemoryEnd ? address : address & 0xF_FFFF) : address & 0xF_FFFF;
+    private uint Wrap(uint address) => A20 ? address : address & 0xF_FFFF;
+
+    /// <summary>Copies a block of extended memory, as the DPMI host does when it moves a block it resizes.</summary>
+    internal void MoveMemory(uint from, uint to, uint length)
+        => _memory.AsSpan((int)from, (int)length).CopyTo(_memory.AsSpan((int)to, (int)length));
 
     // ---- memory helpers for the services -----------------------------------------------------
 
@@ -429,6 +454,9 @@ public sealed partial class Machine : ICpuBus
     }
 
     internal void Trace(string line) => Log?.Invoke(line);
+
+    /// <summary>The program has ended: a DPMI host it was using lets it go.</summary>
+    internal void ProgramEnded() => _dpmi.Release();
 
     // ---- the services ------------------------------------------------------------------------
 
@@ -487,6 +515,7 @@ public sealed partial class Machine : ICpuBus
             case 0x2F: MultiplexService(); break;
             case 0x33: MouseService(); break;
             case 0x67: _ems.Call(); break;
+            case >= DpmiHost.FirstService and <= DpmiHost.LastService: _dpmi.Call(service); break;
             default: throw new NotSupportedException($"No service {service:X2}h.");
         }
     }
