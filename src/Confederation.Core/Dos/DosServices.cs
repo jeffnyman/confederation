@@ -489,6 +489,13 @@ internal sealed partial class DosServices(Machine machine, DosDrive drive)
             case 0x62:
                 cpu.Bx = _psp;
                 break;
+            case 0x52:
+                // the "list of lists", DOS's internal tables, undocumented: Wing Commander III's
+                // loader follows it to count the files DOS can have open
+                cpu.Es = Machine.BiosSegment;
+                cpu.Bx = Machine.ListOfLists;
+                machine.Trace("21/52 list of lists");
+                break;
             case 0x54: cpu.Al = 0; break;
             case 0x58:
                 if (cpu.Al is 0x00 or 0x02)

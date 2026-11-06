@@ -18,6 +18,15 @@ public sealed partial class Machine
     /// <summary>Four zero bytes in the BIOS area, for DOS's answers that point at an empty table.</summary>
     internal const ushort EmptyTable = 0x05F0;
 
+    /// <summary>
+    /// DOS's "list of lists" (INT 21h function 52h), as much of it as programs read: at offset 4,
+    /// a pointer to the chain of system file tables, here a single table at <see cref="FileTables"/>.
+    /// </summary>
+    internal const ushort ListOfLists = 0x0560;
+
+    /// <summary>The one system file table's header: no next table, and room for 40 files, as FILES=40 gives.</summary>
+    private const ushort FileTables = 0x0580;
+
     // the ticks in a day: the timer's 18.2 a second for 24 hours
     private const uint TicksPerDay = 0x1800B0;
 
@@ -74,6 +83,10 @@ public sealed partial class Machine
         // (FCh, an AT) and submodel, the BIOS revision, and the first feature byte: a second
         // interrupt controller, a real-time clock, and INT 09h calling INT 15h function 4Fh
         WriteRom(bios + ConfigurationTable, [0x08, 0x00, 0xFC, 0x00, 0x00, 0x70, 0x00, 0x00, 0x00, 0x00]);
+
+        // DOS's list of lists and its file table, for programs that count the files DOS allows
+        WriteRom(bios + ListOfLists + 4, [FileTables & 0xFF, FileTables >> 8, 0x00, 0xF0]);
+        WriteRom(bios + FileTables, [0xFF, 0xFF, 0xFF, 0xFF, 40, 0]);
 
         // the BIOS data area at 0040:0000, the parts programs read
         WriteWord(0x40, 0x10, 0x1021);   // equipment: a floppy drive, 80-column color video, a game port
