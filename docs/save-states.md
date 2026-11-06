@@ -84,6 +84,12 @@ Blaster spoke. The first runs found two problems:
 The fresh machine passed from the start. Only the reload, the thing a player actually does, found
 the second problem, which is why the test checks all three ways.
 
+*Wing Commander III* found a third. Its files are on the CD, and DOS keeps, for each file open
+there, its directory entry from the disc, with the file's time as a `DateTime`, which a state
+couldn't hold. Saving one failed while the game had a file open on the CD, which is always. It
+holds them now, and a test saves a state while a program has a file on a CD open. A state of
+*Wing Commander III* is about 9 MB, most of it the 16 MB of memory.
+
 ## Keys held
 
 The keyboard in a state is the keyboard as it was when the state was saved. That's at least Ctrl,

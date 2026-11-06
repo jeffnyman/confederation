@@ -45,6 +45,13 @@ public sealed partial class Machine : ICpuBus
     private const uint VideoMemory = 0xA_0000;
 
     private readonly byte[] _memory = new byte[MemorySize];
+
+    // for each 4 KB page, whether it reads, and writes, as plain memory, which the processor
+    // reaches directly: not the video memory, the EMS page frame or (for writing) the BIOS's ROM,
+    // nor past 1 MB with the A20 gate closed, where addresses wrap
+    [NotSaved]
+    private readonly bool[] _plainRead = new bool[MemorySize >> 12], _plainWrite = new bool[MemorySize >> 12];
+    private bool _a20;
     private readonly ExpandedMemory _ems;
     private readonly DosDrive _drive;
     private readonly DosServices _dos;
@@ -77,6 +84,7 @@ public sealed partial class Machine : ICpuBus
     {
         Cpu = new Intel386(this) { HostCall = HostCall, RepeatLimit = RepeatLimit };
         _pic = new InterruptController(second: _pic2);
+        MapMemory();
         _timer.Reloaded0 += () => _nextIrq0 = _timer.Start0 + _timer.Period0;
         _keyboard.Interrupt += () => _pic.Raise(1);
         _ems = new ExpandedMemory(this);
@@ -153,7 +161,15 @@ public sealed partial class Machine : ICpuBus
     public void SetJoystickButton(int button, bool down) => _gamePort.SetButton(button & 3, down);
 
     /// <summary>Whether the A20 gate is open, so that addresses past 1 MB reach the high memory area.</summary>
-    public bool A20 { get; set; }
+    public bool A20
+    {
+        get => _a20;
+        set
+        {
+            _a20 = value;
+            MapMemory();
+        }
+    }
 
     /// <summary>
     /// Puts a host folder on a directory of drive C:, read-only, as the game's folder is: what a
@@ -207,6 +223,9 @@ public sealed partial class Machine : ICpuBus
         long end = _time + instructions;
         while (!Exited && _time < end)
         {
+            // the devices first: what's come due, and what the host did since the last run, a
+            // key pressed say, then the processor until something happens
+            ServiceDevices();
             if (Cpu.Halted)
             {
                 if (!Cpu.InterruptsEnabled)
@@ -216,49 +235,73 @@ public sealed partial class Machine : ICpuBus
 
                 // nothing happens until the next interrupt, so the time skips to it: the timer's,
                 // or the sound card's
-                long irq = (long)Math.Ceiling(_nextIrq0 * InstructionsPerSecond / IntervalTimer.Frequency);
-                _time = Math.Clamp(Math.Min(irq, _soundEventAt), _time + 1, end);
+                _time = Math.Min(NextDeviceEvent(), end);
             }
             else
             {
-                // a repeated string instruction takes a step of time for each repetition
-                long repetitions = Cpu.Repetitions;
-                Cpu.Step();
-                _time += 1 + Cpu.Repetitions - repetitions;
+                RunUntilSomethingHappens(Math.Min(end, NextDeviceEvent()));
                 if (_dos.BetweenPrograms)
                 {
                     // the program ended inside a batch file: on to its next line, which
                     // usually loads the next program over this one's stack and registers
                     _dos.NextCommand();
-                    continue;
-                }
-            }
-
-            UpdateTimer();
-            if (_time >= _soundEventAt)
-            {
-                SoundEvent();
-            }
-
-            _keyboard.Update();
-            if (_pic.HasInterrupt && Cpu.InterruptsEnabled)
-            {
-                int vector = _pic.Acknowledge();
-                if (Cpu.ProtectedMode && _dpmi.Active)
-                {
-                    // in protected mode the vector's place in the table is an exception's: the
-                    // DPMI host delivers it to the program's handler, or down to real mode
-                    _dpmi.HardwareInterrupt(vector);
-                }
-                else
-                {
-                    Cpu.Interrupt(vector);
                 }
             }
         }
 
         UpdateSound();
         return !Exited;
+    }
+
+    /// <summary>
+    /// Runs instructions until the time given, or until something happens that the devices have
+    /// to see to: the program uses an I/O port or calls the BIOS, DOS or the DPMI host, the
+    /// processor halts, or an interrupt is waiting with interrupts on. Between those, nothing
+    /// outside the processor changes, so the timer, the sound and the interrupt controller are
+    /// seen to once for the whole run of instructions rather than after each one, which is where
+    /// half the time went.
+    /// </summary>
+    private void RunUntilSomethingHappens(long until)
+    {
+        // a repeated string instruction takes a step of time for each repetition
+        Cpu.InterruptWaiting = _pic.HasInterrupt;
+        _time += Cpu.RunFor(until - _time);
+    }
+
+    /// <summary>
+    /// The devices' part between runs of instructions: the timer's interrupt and the sound card's
+    /// event if they're due, the keyboard's next scan code, and an interrupt for the processor.
+    /// </summary>
+    private void ServiceDevices()
+    {
+        UpdateTimer();
+        if (_time >= _soundEventAt)
+        {
+            SoundEvent();
+        }
+
+        _keyboard.Update();
+        if (_pic.HasInterrupt && Cpu.InterruptsEnabled)
+        {
+            int vector = _pic.Acknowledge();
+            if (Cpu.ProtectedMode && _dpmi.Active)
+            {
+                // in protected mode the vector's place in the table is an exception's: the
+                // DPMI host delivers it to the program's handler, or down to real mode
+                _dpmi.HardwareInterrupt(vector);
+            }
+            else
+            {
+                Cpu.Interrupt(vector);
+            }
+        }
+    }
+
+    /// <summary>When the next device's event is due, in the machine's time: the timer's interrupt, or the sound card's.</summary>
+    private long NextDeviceEvent()
+    {
+        long irq0 = _nextIrq0 == long.MaxValue ? long.MaxValue : (long)Math.Ceiling(_nextIrq0 * InstructionsPerSecond / IntervalTimer.Frequency);
+        return Math.Max(_time + 1, Math.Min(irq0, _soundEventAt));
     }
 
     private long TimerTicks => (long)(_time * IntervalTimer.Frequency / InstructionsPerSecond);
@@ -318,6 +361,7 @@ public sealed partial class Machine : ICpuBus
     /// <inheritdoc/>
     public byte In(ushort port)
     {
+        Cpu.Stopping = true;
         _timer.Now = TimerTicks;
         switch (port)
         {
@@ -383,6 +427,7 @@ public sealed partial class Machine : ICpuBus
     /// <inheritdoc/>
     public void Out(ushort port, byte value)
     {
+        Cpu.Stopping = true;
         _timer.Now = TimerTicks;
         switch (port)
         {
@@ -471,6 +516,21 @@ public sealed partial class Machine : ICpuBus
     }
 
     private uint Wrap(uint address) => A20 ? address : address & 0xF_FFFF;
+
+    /// <summary>Marks the pages of plain memory for the processor, as the A20 gate leaves them.</summary>
+    private void MapMemory()
+    {
+        for (uint page = 0; page < _plainRead.Length; page++)
+        {
+            uint address = page << 12;
+            bool high = address >= 0x10_0000;
+            bool plain = (!high || _a20) && address - VideoMemory >= 0x2_0000 && address - PageFrame >= 0x1_0000;
+            _plainRead[page] = plain;
+            _plainWrite[page] = plain && (high || address < 0xF_0000);
+        }
+
+        Cpu.MapMemory(_memory, _plainRead, _plainWrite);
+    }
 
     /// <summary>Copies a block of extended memory, as the DPMI host does when it moves a block it resizes.</summary>
     internal void MoveMemory(uint from, uint to, uint length)
@@ -574,6 +634,7 @@ public sealed partial class Machine : ICpuBus
 
     private void HostCall(byte service)
     {
+        Cpu.Stopping = true;
         switch (service)
         {
             case 0x08: TimerTick(); break;

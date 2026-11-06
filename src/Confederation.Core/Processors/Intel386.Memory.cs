@@ -1,3 +1,6 @@
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
 namespace Confederation.Core.Processors;
 
 // Fetching, operand decoding, and memory and stack access, all through segments.
@@ -31,9 +34,17 @@ public sealed partial class Intel386
             throw Fault(Vector.GeneralProtection);
         }
 
-        byte value = _bus.Read(_bases[CS] + _eip);
+        uint address = _bases[CS] + _eip;
         _eip++;
-        return value;
+        return IsPlain(_plainRead, address, 1) ? _ram![address] : _bus.Read(address);
+    }
+
+    /// <summary>Whether an access of the given size lies in one page of plain memory, to be made directly.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsPlain(bool[]? map, uint address, int size)
+    {
+        uint page = address >> 12;
+        return map is not null && page < (uint)map.Length && (address & 0xFFF) <= 0x1000 - size && map[page];
     }
 
     private ushort FetchWord() => (ushort)(FetchByte() | (FetchByte() << 8));
@@ -283,6 +294,17 @@ public sealed partial class Intel386
     private uint ReadMemory(int segment, uint offset, int size)
     {
         uint address = Linear(segment, offset, size);
+        if (IsPlain(_plainRead, address, size))
+        {
+            ref byte at = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_ram!), (nint)address);
+            return size switch
+            {
+                1 => at,
+                2 => Unsafe.ReadUnaligned<ushort>(ref at),
+                _ => Unsafe.ReadUnaligned<uint>(ref at),
+            };
+        }
+
         uint value = _bus.Read(address);
         for (int i = 1; i < size; i++)
         {
@@ -295,6 +317,19 @@ public sealed partial class Intel386
     private void WriteMemory(int segment, uint offset, int size, uint value)
     {
         uint address = Linear(segment, offset, size, write: true);
+        if (IsPlain(_plainWrite, address, size))
+        {
+            ref byte at = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_ram!), (nint)address);
+            switch (size)
+            {
+                case 1: at = (byte)value; break;
+                case 2: Unsafe.WriteUnaligned(ref at, (ushort)value); break;
+                default: Unsafe.WriteUnaligned(ref at, value); break;
+            }
+
+            return;
+        }
+
         for (int i = 0; i < size; i++)
         {
             _bus.Write(address + (uint)i, (byte)(value >> (8 * i)));

@@ -37,8 +37,9 @@ A repeated string instruction counts once for each time it repeats, as in DOSBox
 ([the x86 CPU](the-x86-cpu.md)). `--cycles` overrides it.
 
 *Wing Commander III* is the exception. GOG runs it at `cycles=max`, as fast as the host goes, and
-the machine here manages about 40 million instructions a second (observed, headless, on the
-development machine). So its default is 30,000, which leaves room for the window and the sound.
+the machine here manages about 65 million steps a second in it (observed, headless, on the
+development machine; [the x86 CPU](the-x86-cpu.md#performance)). So its default is 30,000, which
+leaves room for the window and the sound.
 Its movies keep time by their sound, so they play in step whatever the speed (observed at 20,000,
 30,000 and 40,000). Its space flight runs at about 24 frames a second in empty space at both
 30,000 and 40,000, so there the game sets its own pace; in the carrier's launch bay it's about 21

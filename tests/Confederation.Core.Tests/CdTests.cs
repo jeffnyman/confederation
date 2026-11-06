@@ -60,6 +60,36 @@ public sealed class CdTests : IDisposable
     }
 
     [Fact]
+    public void A_state_holds_the_CD()
+    {
+        // saved while the program has a file on the CD open, with the file's time from the
+        // disc's directory: a machine with the same CD loads it and reads on
+        string image = Image(("READER.EXE", Reader), ("DATA.TXT", "from the disc\r\n"u8.ToArray()));
+        var opened = new List<string>();
+        var machine = new Machine(_game, _saves) { Log = opened.Add };
+        machine.InsertCd(image);
+        machine.Load(@"D:\READER.EXE");
+        while (!opened.Any(line => line.StartsWith("21/3D open D:", StringComparison.Ordinal) || line.Contains("DATA.TXT", StringComparison.Ordinal)))
+        {
+            machine.Run(1);
+        }
+
+        Assert.False(machine.Exited);
+        using var state = new MemoryStream();
+        machine.SaveState(state);
+        machine.CloseFiles();
+
+        var loaded = new Machine(_game, _saves) { Log = _log.Add };
+        loaded.InsertCd(image);
+        state.Position = 0;
+        loaded.LoadState(state);
+        loaded.Run(100_000);
+        Assert.True(loaded.Exited, string.Join('\n', _log));
+        Assert.Equal(0, loaded.ExitCode);
+        Assert.Contains("console: from the disc", _log);
+    }
+
+    [Fact]
     public void Without_a_CD_there_is_no_MSCDEX_and_no_drive_D()
     {
         // the same program from C:: the current drive isn't D:, so it fails at once

@@ -31,6 +31,9 @@ public sealed partial class Machine
     {
         ArgumentNullException.ThrowIfNull(stream);
         MachineState.Load(this, Fixed, CheckState, stream);
+
+        // the map of plain memory follows the A20 gate the state had
+        MapMemory();
     }
 
     // what a state refers to rather than holds: the MT-32's ROMs

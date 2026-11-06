@@ -71,6 +71,10 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
     ([docs/the-player.md](docs/the-player.md#the-mouse)), and on through its briefing to the
     cockpit of its first mission.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
+    *Under way*: the machine runs *Wing Commander III* at about 65 million steps a second, from
+    35, by seeing to its devices between runs of instructions rather than after each one,
+    reaching plain memory directly, and running the processor in a loop of its own
+    ([docs/the-x86-cpu.md](docs/the-x86-cpu.md#performance)). Its movies already play.
 
 ## Later
 

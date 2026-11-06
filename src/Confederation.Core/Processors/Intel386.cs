@@ -44,6 +44,16 @@ public sealed partial class Intel386
     internal const int ES = 0, CS = 1, SS = 2, DS = 3, FS = 4, GS = 5;
 
     private readonly ICpuBus _bus;
+
+    // the bus's plain memory, for the processor to read and write directly: the memory, and for
+    // each 4 KB page of it whether it reads (and writes) as nothing but that memory, with no device
+    // or ROM in the way. Elsewhere, and with no map, every byte goes through the bus.
+    [NotSaved]
+    private byte[]? _ram;
+    [NotSaved]
+    private bool[]? _plainRead;
+    [NotSaved]
+    private bool[]? _plainWrite;
     private readonly uint[] _regs = new uint[8];
     private readonly ushort[] _selectors = new ushort[6];
 
@@ -90,6 +100,19 @@ public sealed partial class Intel386
 
         // offsets valid from above the limit to the top, for stacks that grow down
         ExpandDown = 4,
+    }
+
+    /// <summary>
+    /// Gives the processor the bus's memory to reach directly where a page is plain memory: a
+    /// page's entry in <paramref name="plainRead"/> says it reads as <paramref name="ram"/> and
+    /// nothing else, in <paramref name="plainWrite"/> that it writes so. The bus changes the maps
+    /// as its memory changes, the A20 gate say.
+    /// </summary>
+    internal void MapMemory(byte[] ram, bool[] plainRead, bool[] plainWrite)
+    {
+        _ram = ram;
+        _plainRead = plainRead;
+        _plainWrite = plainWrite;
     }
 
     /// <summary>Makes a processor on the bus, in real mode, as the 386 is after reset.</summary>
@@ -206,6 +229,67 @@ public sealed partial class Intel386
             return;
         }
 
+        try
+        {
+            Begin();
+            Execute();
+        }
+        catch (CpuFault fault)
+        {
+            Faulted(fault);
+        }
+    }
+
+    /// <summary>
+    /// Set by the machine when the program has done something its devices must see to: used a
+    /// port, or called a service. <see cref="RunFor"/> stops after the instruction.
+    /// </summary>
+    internal bool Stopping { get; set; }
+
+    /// <summary>Set by the machine while an interrupt waits at its controller, for <see cref="RunFor"/> to stop for once interrupts are on.</summary>
+    internal bool InterruptWaiting { get; set; }
+
+    /// <summary>
+    /// Runs instructions for the given number of steps, a step being an instruction or a
+    /// repetition of a string instruction; or less, if one is <see cref="Stopping"/>, the
+    /// processor halts, or interrupts are on with one <see cref="InterruptWaiting"/>. It's
+    /// <see cref="Step"/> over and over, without the cost of entering it for each instruction.
+    /// </summary>
+    /// <returns>The steps taken.</returns>
+    internal long RunFor(long steps)
+    {
+        long start = Instructions + Repetitions;
+        Stopping = false;
+        while (!Halted)
+        {
+            try
+            {
+                do
+                {
+                    Begin();
+                    Execute();
+                }
+                while (Instructions + Repetitions - start < steps && !Stopping && !Halted && !(InterruptWaiting && InterruptsEnabled));
+
+                break;
+            }
+            catch (CpuFault fault)
+            {
+                Faulted(fault);
+                if (Instructions + Repetitions - start >= steps || Stopping)
+                {
+                    break;
+                }
+            }
+        }
+
+        return Instructions + Repetitions - start;
+    }
+
+    /// <summary>The start of an instruction: where it is, and the prefixes' defaults.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private void Begin()
+    {
         _start = _eip;
         _startEsp = _regs[ESP];
         _length = 0;
@@ -213,24 +297,22 @@ public sealed partial class Intel386
         // a 32-bit code segment's instructions default to 32-bit operands and addresses, and the
         // prefixes switch them to 16
         _operand32 = _big[CS];
-        _address32 = _big[CS];
+        _address32 = _operand32;
         _segment = -1;
         _repeat = Repeat.None;
         Instructions++;
+    }
 
-        try
-        {
-            Execute();
-        }
-        catch (CpuFault fault)
-        {
-            // a fault is restartable: the handler gets the address of the instruction, prefixes
-            // included, and the stack as the instruction found it
-            _eip = _start;
-            _regs[ESP] = _startEsp;
-            LastFault = fault.Vector;
-            RaiseFault(fault);
-        }
+    /// <summary>
+    /// An instruction faulted. A fault is restartable: the handler gets the address of the
+    /// instruction, prefixes included, and the stack as the instruction found it.
+    /// </summary>
+    private void Faulted(CpuFault fault)
+    {
+        _eip = _start;
+        _regs[ESP] = _startEsp;
+        LastFault = fault.Vector;
+        RaiseFault(fault);
     }
 
     /// <summary>

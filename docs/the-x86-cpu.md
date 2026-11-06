@@ -279,7 +279,46 @@ None of these matter to a program that isn't written to probe them.
 
 ## Performance
 
-Not yet measured inside a game, and not yet optimized. Every memory access goes through an
-interface call, a byte at a time. The suite runs 1.76 million instructions, along with gzip
-decompression and checking, in about ten seconds, which says nothing precise about speed but rules
-out a disaster. Profiling waits until a game is running.
+*Wing Commander III* is the game that needs speed. GOG runs it at `cycles=max`, and the player
+gives it 30 million instructions a second. So that's what was measured, from three saved states
+([save states](save-states.md)): its opening movie, the simulator in flight, and the cockpit in
+the carrier's launch bay. Each runs headless for ten seconds of the game's time, as fast as the
+host goes, sound and all. Speed is counted in steps, an instruction or a repetition of a string
+instruction, which is what the machine's time counts.
+
+Observed on the development machine:
+
+| | Movie | Simulator | Launch bay |
+|---|---|---|---|
+| Before | 35.5 | 35.7 | 33.8 |
+| The devices seen to between runs of instructions | 45.7 | 51.1 | 49.1 |
+| Plain memory reached directly | 54.3 | 56.3 | 50.1 |
+| The processor's own loop | 64.1 | 66.6 | 62.4 |
+
+In millions of steps a second. At 30 million, the game now runs at a little over twice real time,
+where it was about 1.15 times.
+
+The profiles (`dotnet-trace`) said where the time went:
+
+- **The devices, after every instruction.** The machine's loop updated the timer, checked the
+  sound card and the keyboard, and asked the interrupt controller whether anything was pending,
+  after each instruction: more than half the time, the controller's question alone 14%. But
+  between the program's uses of a port and its calls to the BIOS, DOS or the DPMI host, nothing
+  outside the processor changes. So the machine runs instructions until the next timer or sound
+  event is due, and stops early only when the program touches a port or calls a service, the
+  processor halts, or interrupts are on with one waiting. The interrupt controller keeps its
+  answer up to date as its registers change, rather than working it out when asked.
+- **Memory a byte at a time.** Every access, instruction fetches included, went through the bus,
+  an interface call per byte. Now the machine gives the processor its memory and a map of which
+  4 KB pages are plain memory: not video memory, not the EMS page frame, not the BIOS's ROM for
+  writing, and nothing past 1 MB while the A20 gate is closed, where addresses wrap. There the
+  processor reads and writes the array itself, a whole word at once. Elsewhere, and in the
+  single-step tests' own bus, which has no map, it goes through the bus as before.
+- **Entering the processor for each instruction.** `Step` set up the instruction, and caught a
+  fault, once per instruction, called from the machine's loop. Now `RunFor` runs instructions in
+  a loop of its own, under one `try`, until it has taken the steps the machine asked for, or one
+  of the reasons to stop above. A port or a service tells it to stop by setting `Stopping`.
+
+What's left is the interpreter itself: decoding each instruction from its bytes every time it
+runs, and the work of each one. A cache of decoded instructions would be the next step, and a
+bigger one.

@@ -304,6 +304,11 @@ internal static class MachineState
             {
                 WritePrimitive(value!);
             }
+            else if (type == typeof(DateTime))
+            {
+                // a time, as the CD's directory gives each file
+                writer.Write(((DateTime)value!).ToBinary());
+            }
             else if (type == typeof(string))
             {
                 writer.Write(value is not null);
@@ -493,6 +498,11 @@ internal static class MachineState
             if (type.IsPrimitive)
             {
                 return ReadPrimitive(type);
+            }
+
+            if (type == typeof(DateTime))
+            {
+                return DateTime.FromBinary(reader.ReadInt64());
             }
 
             if (type == typeof(string))

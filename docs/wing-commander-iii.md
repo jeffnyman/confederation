@@ -138,6 +138,8 @@ own speed.
 The player knows the game as `wc3`, from GOG's folder, by its CD image
 ([profiles and the menu](profiles-and-the-menu.md)). It puts `DATA.DAT` in as D:, runs
 `D:\WC3.EXE` at 30,000 cycles ([the player](the-player.md#speed)), and has the game's own icon.
+Save states work for it since they can hold the time of a file open on the CD
+([save states](save-states.md)).
 
 Still to come, probably:
 
