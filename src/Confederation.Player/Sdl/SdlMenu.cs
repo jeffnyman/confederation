@@ -69,7 +69,7 @@ internal sealed unsafe class SdlMenu : IDisposable
 
     // the game's folder, when its series is set up and its program (or CD) is there
     private string? Folder(KnownGame game)
-        => _settings.FolderOf(game.Series) is { } folder && Games.IsIn(folder, game) ? folder : null;
+        => Games.FolderOf(_settings, game.Series) is { } folder && Games.IsIn(folder, game) ? folder : null;
 
     private Game? Run()
     {

@@ -228,7 +228,7 @@ internal static class Program
         else if (Games.Named(gameName) is { } known)
         {
             game = Games.In(
-                settings.FolderOf(known.Series)
+                Games.FolderOf(settings, known.Series)
                     ?? throw new FileNotFoundException($"{known.Series.Title} isn't set up yet: run confederation \"<its folder>\" once, or drop the folder on the menu's window"),
                 known);
             if (program is not null)
@@ -421,8 +421,9 @@ internal static class Program
         foreach (var series in Games.AllSeries)
         {
             Console.WriteLine();
-            string? folder = settings.FolderOf(series);
-            Console.WriteLine($"{series.Title}: {folder ?? "not set up (run confederation \"<its folder>\" once)"}");
+            string? folder = Games.FolderOf(settings, series);
+            string from = settings.FolderOf(series) is null && folder is not null ? " (the copy included with Confederation)" : "";
+            Console.WriteLine($"{series.Title}: {folder ?? "not set up (run confederation \"<its folder>\" once)"}{from}");
             if (folder is null)
             {
                 continue;
@@ -448,8 +449,10 @@ internal static class Program
               [game]             a game's short name: wc1, sm1 or sm2 (Wing Commander and its
                                  Secret Missions), wc2, so1 or so2 (Wing Commander II and its
                                  Special Operations), wc3 (Wing Commander III, from GOG's CD
-                                 image, DATA.DAT); or its folder, or its program. A folder
-                                 given once is remembered, so the short names find it after.
+                                 image, DATA.DAT); or its folder, or its program. Wing Commander
+                                 and Wing Commander II are included, and play by their short
+                                 names as they are. A folder given once is remembered, so the
+                                 short names find it after.
                                  Or W.C.A.T.'s folder, which runs its launcher, with the series
                                  set up for its data. With no game, a menu in a window lists them.
               [program]          another program in the folder, such as SM2.EXE or SO1.EXE, or

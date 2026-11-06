@@ -18,6 +18,20 @@ mission disks:
 | `Wing Commander II` | `WC2.EXE`, `SO1.EXE`, `SO2.EXE` | `wc2`, `so1`, `so2` |
 | `Wing Commander III - Heart of the Tiger` | `WC3.EXE`, on the CD image `DATA.DAT` | `wc3` |
 
+The repository includes the first two, by Electronic Arts' permission
+([NOTICE.md](../NOTICE.md)), in `games/wc1` and `games/wc2`, with each program renamed as that
+permission asks: `CONFWC1.EXE` for `WC.EXE`, `CONFSM2.EXE`, `CONFWC2.EXE`, `CONFSO1.EXE` and
+`CONFSO2.EXE`. The player knows each program by both names. The build copies `games/` beside
+the player, and a series that isn't set up is played from there, so `wc1` plays straight away.
+A GOG folder, once given, is played instead.
+
+Renaming was checked before anything else, because each game opens its own program file to
+read more of itself, and each holds its own name, `wc2.exe` and so on. Run side by side, the
+renamed programs do what the originals do (observed, for all seven). They find themselves by
+the name DOS gives them, not the one inside. The one difference is that the longer name takes
+one more 16-byte paragraph of the environment, so each loads 16 bytes higher, and *Wing
+Commander* sizes one buffer 16 bytes smaller.
+
 The programs in a folder share more than the folder. They read the same configuration file, the
 one the game's installer wrote (`WINGCMDR.CFG` or `WC2.CFG`, where the music device is chosen).
 They share their saves, as on a real disk, because a mission disk carries on with the main game's

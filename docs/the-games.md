@@ -1,5 +1,9 @@
 # The games
 
+*Wing Commander* and *Wing Commander II*, with their mission disks, are also in the repository,
+in `games/`, by Electronic Arts' permission, with their programs renamed ([NOTICE.md](../NOTICE.md)).
+The names below are GOG's, as the games were examined.
+
 This note records what each *Wing Commander* release is, what is on hand in `_wingc`, and what can
 be learned about each game's needs *before* writing any emulator code, just by looking at the
 files. That last part is a habit worth building: the files usually tell you a lot about what the

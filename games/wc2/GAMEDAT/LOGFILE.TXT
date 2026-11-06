@@ -1,0 +1,6 @@
+
+campaign.s01, #0, 555A:000C
+options.v00, #0, 64FB:000B
+music.a00, #53, 6DA8:0003
+fonts.fnt, #0, 70AC:000A
+campaign.s01, #0, 555A:000C

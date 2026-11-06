@@ -33,7 +33,7 @@ internal static class GameIcons
         }
 
         // The Secret Missions run Wing Commander's own program, and share its icon
-        var known = Games.Known.FirstOrDefault(known => string.Equals(known.Program, game.Program, StringComparison.OrdinalIgnoreCase));
+        var known = Games.Known.FirstOrDefault(known => known.Programs.Contains(game.Program, StringComparer.OrdinalIgnoreCase));
         return known is null ? Confederation : Built(known.Name);
     }
 

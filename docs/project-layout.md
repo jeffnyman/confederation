@@ -50,10 +50,16 @@ or the build fails.
 
 ## Tests that need the games
 
-The games themselves never go in the repository (`.gitignore` blocks the common file types).
-Tests that need them will look for the game files in a known place and pass without checking
-when they aren't there. So CI on GitHub runs everything that doesn't need copyrighted data, and a
-local run with the games present runs everything.
+*Wing Commander* and *Wing Commander II*, with their mission disks, are in the repository, in
+`games/wc1` and `games/wc2`, by Electronic Arts' permission ([NOTICE.md](../NOTICE.md)), with
+their programs renamed (`CONFWC1.EXE` and so on; `games/NOTICE.md` lists them). The player's
+build copies `games/` beside the player, and the tests find it above their binaries, so the
+tests of those games run everywhere, CI included. `.gitattributes` marks the folder binary, so
+git never touches a byte of it.
+
+Other games stay out (`.gitignore` blocks the common file types everywhere but `games/`).
+*Wing Commander III*'s tests look for it in a known place (`CONFEDERATION_GAMES`, or `_wingc`
+above the test binary), and pass without checking when it isn't there.
 
 ## Continuous integration
 

@@ -8,7 +8,8 @@ obj/
 TestResults/
 artifacts/
 
-# game data and ROMs never go in the repository: the games live outside it (in ../_wingc), and
+# game data and ROMs go in the repository only in games/, where Wing Commander and Wing Commander
+# II are included by permission (see NOTICE.md); the rest live outside it (in ../_wingc), and
 # these catch a copy made by mistake
 GAMEDAT/
 *.iso
@@ -18,3 +19,5 @@ GAMEDAT/
 *.pal
 *.mid
 *.rom
+!games/*/GAMEDAT/
+!games/**

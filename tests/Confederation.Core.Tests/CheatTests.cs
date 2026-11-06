@@ -13,11 +13,11 @@ public sealed class CheatTests : IDisposable
     public void Dispose() => Directory.Delete(_saves, recursive: true);
 
     [Theory]
-    [InlineData("Wing Commander", "WC.EXE", 0xB6)]
-    [InlineData("Wing Commander", "SM2.EXE", 0xB6)]
-    [InlineData("Wing Commander II", "WC2.EXE", 0xBC)]
-    [InlineData("Wing Commander II", "SO1.EXE", 0xBC)]
-    [InlineData("Wing Commander II", "SO2.EXE", 0xBC)]
+    [InlineData("wc1", "CONFWC1.EXE", 0xB6)]
+    [InlineData("wc1", "CONFSM2.EXE", 0xB6)]
+    [InlineData("wc2", "CONFWC2.EXE", 0xBC)]
+    [InlineData("wc2", "CONFSO1.EXE", 0xBC)]
+    [InlineData("wc2", "CONFSO2.EXE", 0xBC)]
     public void The_cheat_words_set_the_games_flags(string game, string program, int origin)
     {
         if (TestData.Game(game) is not { } folder)

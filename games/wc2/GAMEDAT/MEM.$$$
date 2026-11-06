@@ -1,0 +1,27 @@
+********* HeapWalk ***********
+DS at 2377, free: 6432
+Node:   0  ptr: DED2  size:   516  *
+Node:   1  ptr: E0D6  size:   324  *
+Node:   2  ptr: E21A  size:    14  *
+Node:   3  ptr: E228  size:    14  *
+Node:   4  ptr: E236  size:    14  *
+Node:   5  ptr: E244  size:   516  *
+MMS Walk Start
+Node    0   Addr: 55B2:000F (55B2:000F)  size: 300117 (true: 300117)   B  
+Node    1   Addr: 53BE:0000 (53BD:0001)  size:   8015 (true:   8030)   P *
+Node    2   Addr: 53B1:000B (53B1:000B)  size:    182 (true:    182)   B P
+Node    3   Addr: 5392:0002 (5392:0002)  size:    505 (true:    505)   B P
+Node    4   Addr: 521E:0000 (521D:0002)  size:   5953 (true:   5968)   P P
+Node    5   Addr: 5124:0000 (5123:0001)  size:   3986 (true:   4001)   P P
+Node    6   Addr: 49CC:0000 (49CB:000D)  size:  30053 (true:  30068)   P P
+Node    7   Addr: 46EA:0000 (46E9:0004)  size:  11802 (true:  11817)   P P
+MMS Walk End
+EMS Walk Start
+Node    8   Addr: C000:0004  size:  11804   W *
+Node    9   Addr: C000:2E24  size:   4572   W  
+Node   10   Addr: C001:0004  size:  65532   W *
+Node   11   Addr: C005:0004  size:  16380   W  
+Node   12   Addr: C006:0004  size:  54500   W *
+Node   13   Addr: C009:14EC  size: 15379220   W  
+EMS Walk End
+******************************

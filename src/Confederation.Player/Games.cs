@@ -6,14 +6,17 @@ namespace Confederation.Player;
 /// </summary>
 /// <param name="Key">Its name in the settings and on the command line: <c>wc1</c>, <c>wc2</c> or <c>wc3</c>.</param>
 /// <param name="Title">The main game's title.</param>
-/// <param name="MainProgram">The main game's program, which identifies the series' folder, unless it's on the CD.</param>
+/// <param name="MainPrograms">
+/// The main game's program, which identifies the series' folder, unless it's on the CD: by its
+/// name here, in the repository's <c>games</c>, and by GOG's.
+/// </param>
 /// <param name="Config">
 /// The configuration file its installer writes, as one line of words the player can change the
 /// music in; null when it's not that kind of file.
 /// </param>
 /// <param name="Cycles">Its speed in DOSBox's cycles, as GOG sets it.</param>
 /// <param name="Cd">The CD image a game played from its CD comes as, which identifies its folder.</param>
-internal sealed record Series(string Key, string Title, string MainProgram, string? Config, int Cycles, Disc? Cd = null);
+internal sealed record Series(string Key, string Title, string[] MainPrograms, string? Config, int Cycles, Disc? Cd = null);
 
 /// <summary>A CD, as an image in the game's folder, recognized by its volume's name.</summary>
 /// <param name="Image">The image's file, as GOG names it.</param>
@@ -23,10 +26,15 @@ internal sealed record Disc(string Image, string Label);
 /// <summary>A program the player knows by a short name, in a series.</summary>
 /// <param name="Name">Its short name: <c>wc1</c>, <c>sm2</c>, <c>so1</c> and so on.</param>
 /// <param name="Series">The series it's part of.</param>
-/// <param name="Program">The program file.</param>
+/// <param name="Program">The program file, as it's named in the repository's <c>games</c>.</param>
 /// <param name="Title">Its title.</param>
 /// <param name="Note">Something to know before playing it, if anything.</param>
-internal sealed record KnownGame(string Name, Series Series, string Program, string Title, string? Note = null);
+/// <param name="Original">The program's name as GOG installs it, when that's another.</param>
+internal sealed record KnownGame(string Name, Series Series, string Program, string Title, string? Note = null, string? Original = null)
+{
+    /// <summary>The names its program goes by: the repository's, then GOG's.</summary>
+    public string[] Programs => Original is null ? [Program] : [Program, Original];
+}
 
 /// <summary>
 /// W.C.A.T., AllTinker's overhaul of a series: a launcher of its own, beside a directory it
@@ -74,25 +82,33 @@ internal enum Music
 /// millisecond, so 4,000 cycles is the machine's 4 million instructions a second.
 /// </para>
 /// <para>
+/// The repository has <i>Wing Commander</i> and <i>Wing Commander II</i>, with their mission
+/// disks, in <c>games</c>, by Electronic Arts' permission, with each program renamed as the
+/// permission asks: <c>WC.EXE</c> is <c>CONFWC1.EXE</c> there, <c>WC2.EXE</c> is
+/// <c>CONFWC2.EXE</c>, and so on. The player knows both names, so a GOG folder works as well.
+/// The build copies <c>games</c> beside the player, and a series that isn't set up is played from
+/// there.
+/// </para>
+/// <para>
 /// <i>The Secret Missions</i> (the first) has no program of its own: once installed, it's a
-/// choice in <i>Wing Commander</i>'s campaign menu, so <c>sm1</c> starts <c>WC.EXE</c>.
+/// choice in <i>Wing Commander</i>'s campaign menu, so <c>sm1</c> starts the main program.
 /// </para>
 /// <para>
 /// <i>Wing Commander III</i> runs from its CD, as GOG sets it up: <c>DATA.DAT</c>, the four CDs in
 /// one image, as drive D:, and <c>WC3.EXE</c> from there. Its folder holds no program, so it's
 /// known by the image, whose volume is named <c>WC3_CD1</c>. GOG runs it at DOSBox's
-/// <c>cycles=max</c>, as fast as the host goes. Here it's 30,000: the machine manages about 40
-/// million instructions a second (observed), so that leaves room for the window and the sound.
-/// Its movies keep time by their sound, so they play in step at 20,000 as at 40,000 (observed);
-/// how fast its space flight needs the processor to be is still to find out. Its installer's
+/// <c>cycles=max</c>, as fast as the host goes. Here it's 30,000: the machine manages about 65
+/// million steps a second in it (observed), so that leaves room for the window and the sound.
+/// Its movies keep time by their sound, so they play in step at 20,000 as at 40,000, and a
+/// simulator mission flies well at 30,000 (observed). Its installer's
 /// <c>WC3.CFG</c> is binary, so the player leaves its music alone.
 /// </para>
 /// </remarks>
 internal static class Games
 {
-    public static readonly Series Wc1 = new("wc1", "Wing Commander", "WC.EXE", "WINGCMDR.CFG", 4000);
-    public static readonly Series Wc2 = new("wc2", "Wing Commander II", "WC2.EXE", "WC2.CFG", 8000);
-    public static readonly Series Wc3 = new("wc3", "Wing Commander III", "WC3.EXE", null, 30000, new Disc("DATA.DAT", "WC3_CD1"));
+    public static readonly Series Wc1 = new("wc1", "Wing Commander", ["CONFWC1.EXE", "WC.EXE"], "WINGCMDR.CFG", 4000);
+    public static readonly Series Wc2 = new("wc2", "Wing Commander II", ["CONFWC2.EXE", "WC2.EXE"], "WC2.CFG", 8000);
+    public static readonly Series Wc3 = new("wc3", "Wing Commander III", ["WC3.EXE"], null, 30000, new Disc("DATA.DAT", "WC3_CD1"));
 
     /// <summary>The series, the main game of each first.</summary>
     public static readonly Series[] AllSeries = [Wc1, Wc2, Wc3];
@@ -100,13 +116,13 @@ internal static class Games
     /// <summary>Every game the player knows, in the order the menu shows them.</summary>
     public static readonly KnownGame[] Known =
     [
-        new("wc1", Wc1, "WC.EXE", "Wing Commander"),
-        new("sm1", Wc1, "WC.EXE", "Wing Commander: The Secret Missions", "chosen in Wing Commander's campaign menu"),
-        new("sm2", Wc1, "SM2.EXE", "Wing Commander: The Secret Missions 2"),
-        new("wc2", Wc2, "WC2.EXE", "Wing Commander II"),
-        new("so1", Wc2, "SO1.EXE", "Wing Commander II: Special Operations 1"),
-        new("so2", Wc2, "SO2.EXE", "Wing Commander II: Special Operations 2"),
-        new("wc3", Wc3, "WC3.EXE", "Wing Commander III: Heart of the Tiger", "new here: it plays as far as its first screen, the hangar, and past that is untried"),
+        new("wc1", Wc1, "CONFWC1.EXE", "Wing Commander", Original: "WC.EXE"),
+        new("sm1", Wc1, "CONFWC1.EXE", "Wing Commander: The Secret Missions", "chosen in Wing Commander's campaign menu", "WC.EXE"),
+        new("sm2", Wc1, "CONFSM2.EXE", "Wing Commander: The Secret Missions 2", Original: "SM2.EXE"),
+        new("wc2", Wc2, "CONFWC2.EXE", "Wing Commander II", Original: "WC2.EXE"),
+        new("so1", Wc2, "CONFSO1.EXE", "Wing Commander II: Special Operations 1", Original: "SO1.EXE"),
+        new("so2", Wc2, "CONFSO2.EXE", "Wing Commander II: Special Operations 2", Original: "SO2.EXE"),
+        new("wc3", Wc3, "WC3.EXE", "Wing Commander III: Heart of the Tiger", "new here: it plays to its first mission, and further is untried"),
     ];
 
     /// <summary>W.C.A.T. for each series, found by the directory its launcher expects the game in.</summary>
@@ -136,18 +152,36 @@ internal static class Games
 
     /// <summary>The series whose main program, or CD image, is in a folder, or null.</summary>
     public static Series? SeriesIn(string folder)
-        => AllSeries.FirstOrDefault(series => series.Cd is { } cd ? ImageIn(folder, cd) is not null : FileIn(folder, series.MainProgram) is not null);
+        => AllSeries.FirstOrDefault(series => series.Cd is { } cd ? ImageIn(folder, cd) is not null : MainProgramIn(folder, series) is not null);
 
-    /// <summary>Whether a known game is in a folder: its program, or its series' CD image.</summary>
+    /// <summary>Whether a known game is in a folder: its program, by either name, or its series' CD image.</summary>
     public static bool IsIn(string folder, KnownGame game)
-        => game.Series.Cd is { } cd ? ImageIn(folder, cd) is not null : FileIn(folder, game.Program) is not null;
+        => game.Series.Cd is { } cd ? ImageIn(folder, cd) is not null : ProgramIn(folder, game) is not null;
+
+    /// <summary>
+    /// The folder a series is played from: where it was set up, or else the copy the build put
+    /// beside the player, for the games the repository has. Null when there's neither.
+    /// </summary>
+    public static string? FolderOf(Settings settings, Series series) => settings.FolderOf(series) ?? Bundled(series);
+
+    /// <summary>The repository's copy of a series, beside the player (<c>games/wc1</c> and <c>games/wc2</c>), or null.</summary>
+    public static string? Bundled(Series series)
+        => DirectoryIn(Path.Combine(AppContext.BaseDirectory, "games"), series.Key) is { } folder && SeriesIn(folder) == series ? folder : null;
+
+    // the name a known game's program goes by in a folder, the repository's or GOG's
+    private static string? ProgramIn(string folder, KnownGame game)
+        => game.Programs.FirstOrDefault(program => FileIn(folder, program) is not null);
+
+    // the name a series' main program goes by in a folder
+    private static string? MainProgramIn(string folder, Series series)
+        => series.MainPrograms.FirstOrDefault(program => FileIn(folder, program) is not null);
 
     /// <summary>A known game in its series' folder.</summary>
     public static Game In(string folder, KnownGame game)
     {
         if (!IsIn(folder, game))
         {
-            throw new FileNotFoundException(game.Series.Cd is { } cd ? $"no {cd.Image} with the CD {cd.Label} in {folder}" : $"no {game.Program} in {folder}");
+            throw new FileNotFoundException(game.Series.Cd is { } cd ? $"no {cd.Image} with the CD {cd.Label} in {folder}" : $"no {string.Join(" or ", game.Programs)} in {folder}");
         }
 
         return Make(Path.GetFullPath(folder), game);
@@ -155,7 +189,7 @@ internal static class Games
 
     // a known game, from its CD when its series has one
     private static Game Make(string folder, KnownGame game)
-        => new(folder, game.Program, game.Title, game.Series.Cycles, game.Series, Cd: game.Series.Cd is { } cd ? ImageIn(folder, cd) : null);
+        => new(folder, ProgramIn(folder, game) ?? game.Program, game.Title, game.Series.Cycles, game.Series, Cd: game.Series.Cd is { } cd ? ImageIn(folder, cd) : null);
 
     /// <summary>
     /// The CD image in a folder, if it's there and is the right CD: its volume's name is in the
@@ -218,14 +252,14 @@ internal static class Games
             // the main games first, before their mission disks
             var series = SeriesIn(folder)
                 ?? throw new FileNotFoundException($"no game the player knows in {folder}: name its program, as in WC.EXE");
-            program = series.MainProgram;
+            program = MainProgramIn(folder, series) ?? series.MainPrograms[0];
         }
         else if (FileIn(folder, program) is null)
         {
             throw new FileNotFoundException($"no {program} in {folder}");
         }
 
-        var known = Known.FirstOrDefault(game => string.Equals(game.Program, program, StringComparison.OrdinalIgnoreCase) && IsIn(folder, game));
+        var known = Known.FirstOrDefault(game => game.Programs.Contains(program, StringComparer.OrdinalIgnoreCase) && IsIn(folder, game));
         return known is null
             ? new Game(folder, program.ToUpperInvariant(), Path.GetFileNameWithoutExtension(program).ToUpperInvariant(), 4000, null)
             : Make(folder, known);

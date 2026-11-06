@@ -1,0 +1,47 @@
+                  THANK YOU FOR BUYING WING COMMANDER II!
+
+Nearly ten man-years of work went into this product. Without the support
+of customers like yourself, we would be unable to continue to create
+games of this quality and scale. Please, do not distribute illegal copies
+of this software.
+
+
+                WING COMMANDER II CONFIGURATION INFORMATION
+1) Without the Speech Accessory Pack, there is only one place you'll get
+speech in WC2: the first scene of the introduction, where the Emperor and
+Prince Thrakhath discuss their plans for conquering Humanity. Since the
+speech requires 64K of EMS, plus an extra 4K of base memory, you'll
+probably want to go back to the INSTALL program and disable the speech
+once you've seen the introduction.
+
+2) If you have the minimum memory amount (583,000 bytes), you'll only
+get the basic game features. As your free RAM increases, you get more
+and more "extras", as follows:
+   a. If you have selected speech, 4000 bytes are allocated for that.
+   b. If you don't have EMS but do have 20,000 bytes beyond the minimum,
+      that memory gets allocated for music.
+   c. Last, you get extra spaceflight graphics: planets, the jump flash,
+      the larger explosions, debris and cockpit damage.
+
+3) If you have EMS, refer to your documentation for the order in which
+the EMS features are enabled. In particular, note that if you only have
+a little (100K or less) of free EMS, you can have either speech or
+instant replay, but not both.
+
+4) Please remember that, in all cases except sound, music and speech,
+features are loaded in on a case-by-case basis. That is, the particular
+features you get may change from mission to mission as your memory
+allocation changes.
+
+5) We have extensively playtested WC2 under MS-DOS 5.0, and recommend it
+highly. You should be able to get 583,000 bytes free on a machine running
+MS-DOS 4.01, and we've taken care to make the game run well in that
+configuration, but upgrading to 5.0 will increase not only your
+free RAM but also your enjoyment of Wing Commander II! Contact the dealer
+from whom you purchased this game to find out more about MS-DOS 5.0.
+
+
+                             ENJOY YOUR GAME!
+
+
+

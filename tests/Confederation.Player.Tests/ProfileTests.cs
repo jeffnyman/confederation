@@ -80,12 +80,31 @@ public sealed class ProfileTests : IDisposable
     }
 
     [Theory]
-    [InlineData("wc1", "WC.EXE")]
-    [InlineData("SM1", "WC.EXE")]
-    [InlineData("sm2", "SM2.EXE")]
-    [InlineData("so2", "SO2.EXE")]
-    public void Games_are_known_by_their_short_names(string name, string program)
-        => Assert.Equal(program, Games.Named(name)!.Program);
+    [InlineData("wc1", "CONFWC1.EXE", "WC.EXE")]
+    [InlineData("SM1", "CONFWC1.EXE", "WC.EXE")]
+    [InlineData("sm2", "CONFSM2.EXE", "SM2.EXE")]
+    [InlineData("so2", "CONFSO2.EXE", "SO2.EXE")]
+    public void Games_are_known_by_their_short_names(string name, string program, string gogs)
+        => Assert.Equal([program, gogs], Games.Named(name)!.Programs);
+
+    [Theory]
+    [InlineData("wc1", "CONFWC1.EXE")]
+    [InlineData("sm2", "CONFSM2.EXE")]
+    [InlineData("wc2", "CONFWC2.EXE")]
+    [InlineData("so1", "CONFSO1.EXE")]
+    public void The_included_games_are_played_from_beside_the_player(string name, string program)
+    {
+        // the build copies the repository's games beside the player; a series not set up is played from there
+        var known = Games.Named(name)!;
+        string folder = Games.FolderOf(Settings.Load(SettingsPath), known.Series)!;
+        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "games", known.Series.Key), folder, ignoreCase: true);
+        Assert.Equal(program, Games.In(folder, known).Program);
+        Assert.Equal(known.Series, Games.Find(folder, null).Series);
+    }
+
+    [Fact]
+    public void Wing_Commander_plays_from_the_included_copy()
+        => Assert.Equal(0, Run("wc1"));
 
     [Fact]
     public void A_folder_is_known_by_its_main_program()
@@ -103,8 +122,8 @@ public sealed class ProfileTests : IDisposable
     [Fact]
     public void A_folder_played_once_is_remembered_for_its_short_name()
     {
-        // the series isn't set up: its short name can't be played
-        var ex = Assert.Throws<FileNotFoundException>(() => Run("wc1"));
+        // a series that isn't set up, and isn't included, can't be played by its short name
+        var ex = Assert.Throws<FileNotFoundException>(() => Run("wc3"));
         Assert.Contains("isn't set up", ex.Message);
 
         // played by its folder, it's remembered

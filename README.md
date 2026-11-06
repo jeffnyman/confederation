@@ -11,6 +11,17 @@ in C# instead of being booted.
 **Confederation** is not a DOSBox fork. Its logic is ported from DOSBox where that helps, but
 DOSBox is never wrapped or linked.
 
+## Why
+
+Confederation exists to preserve the classic games as they were. Electronic Arts has released
+*Wing Commander I: 35th Anniversary Edition*, *Wing Commander II: Vengeance of the Kilrathi:
+35th Anniversary Edition* and *Wing Commander III: Heart of the Tiger: 30th Anniversary
+Edition*. Confederation is a way to see how the originals were: the DOS games themselves, run as
+they ran then, with notes in [docs](docs/README.md) on how all of it was worked out and built.
+
+*Wing Commander* and *Wing Commander II*, with their mission disks, are included, by permission
+of Electronic Arts (see [NOTICE.md](NOTICE.md)). *Wing Commander III* plays from a copy you have.
+
 ## Status
 
 The CPU is done: a 386 in real mode that matches a real chip across 1.76 million captured test
@@ -22,12 +33,19 @@ protected mode from its CD image, plays its opening movie with its sound, goes a
 carrier by mouse, and launches on its first mission. [ROADMAP.md](ROADMAP.md) lays out the order of work.
 
 ```
-dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander>"
+dotnet run --project src/Confederation.Player -c Release -- wc1
 ```
 
-After that once, the game has a short name: `wc1`, `sm1` and `sm2` for *Wing Commander* and its
-*Secret Missions*, `wc2`, `so1` and `so2` for *Wing Commander II* and its *Special Operations*,
-`wc3` for *Wing Commander III*.
+The included games are played by their short names: `wc1`, `sm1` and `sm2` for *Wing Commander*
+and its *Secret Missions*, `wc2`, `so1` and `so2` for *Wing Commander II* and its *Special
+Operations*. *Wing Commander III* is given its folder once, and is `wc3` after that:
+
+```
+dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Commander III>"
+```
+
+A GOG folder of *Wing Commander* or *Wing Commander II* works the same way, and is then played
+in place of the included copy.
 With no game named, a menu lists them, and a game's folder dropped on its window sets it up.
 `--remember` keeps a run's options as the game's own, and `--list` shows what's set up.
 
@@ -48,3 +66,11 @@ music on an emulated Roland MT-32 instead; its ROMs aren't included.
 
 The [docs](docs/README.md) record how the project was approached and built, as a reference for
 anyone taking on a retro game the same way.
+
+## License
+
+Confederation is © 2026 Jeff Nyman, under the GNU General Public License, version 3
+([LICENSE](LICENSE)). The *Wing Commander* games, their files and any *Wing Commander* logic are
+copyrighted by Electronic Arts Inc. and are not under that license. The included games, in
+[`games/`](games/), are there by Electronic Arts' permission, and may not be sold or charged for.
+See [NOTICE.md](NOTICE.md).

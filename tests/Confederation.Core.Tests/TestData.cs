@@ -10,8 +10,12 @@ internal static class TestData
     public static string? Find(string relativePath) =>
         Search("CONFEDERATION_TESTDATA", ["_testdata", "_wingc/_testdata"], relativePath);
 
-    /// <summary>A game's folder, in CONFEDERATION_GAMES or in a _wingc folder above the test binary; null when there is none.</summary>
-    public static string? Game(string folder) => Search("CONFEDERATION_GAMES", ["_wingc"], folder);
+    /// <summary>
+    /// A game's folder: <c>wc1</c> and <c>wc2</c> are the repository's own, in its <c>games</c>;
+    /// others are looked for in CONFEDERATION_GAMES or in a _wingc folder above the test binary.
+    /// Null when there is none.
+    /// </summary>
+    public static string? Game(string folder) => Search("CONFEDERATION_GAMES", ["games", "_wingc"], folder);
 
     /// <summary>
     /// The Roland MT-32 and CM-32L ROMs: the folder in CONFEDERATION_MT32_ROMS, or a _mt32-roms

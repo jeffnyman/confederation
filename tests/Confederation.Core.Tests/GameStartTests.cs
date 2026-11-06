@@ -14,13 +14,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_starts_and_sets_the_vga_mode()
     {
-        if (TestData.Game("Wing Commander") is not { } folder)
+        if (TestData.Game("wc1") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add };
-        machine.Load("WC.EXE");
+        machine.Load("CONFWC1.EXE");
         RunUntil(machine, () => machine.VideoMode == 0x13, 50_000_000);
 
         // it opens its data files for writing, but writes none of them, so nothing is copied
@@ -31,13 +31,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_plays_its_intro()
     {
-        if (TestData.Game("Wing Commander") is not { } folder)
+        if (TestData.Game("wc1") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add };
-        machine.Load("WC.EXE");
+        machine.Load("CONFWC1.EXE");
         string shots = Path.Combine(AppContext.BaseDirectory, "screenshots");
 
         // the conductor, the Origin FX logo, and the space battle after the opening words; the
@@ -72,7 +72,7 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_plays_its_intro_on_a_roland()
     {
-        if (TestData.Game("Wing Commander") is not { } folder || TestData.Mt32Roms() is not { } roms)
+        if (TestData.Game("wc1") is not { } folder || TestData.Mt32Roms() is not { } roms)
         {
             return;
         }
@@ -81,7 +81,7 @@ public sealed class GameStartTests : IDisposable
         File.WriteAllText(Path.Combine(_saves, "WINGCMDR.CFG"), "v r z\r\n");
         var machine = new Machine(folder, _saves) { Log = _log.Add };
         machine.UseMt32(roms);
-        machine.Load("WC.EXE");
+        machine.Load("CONFWC1.EXE");
 
         // the driver greets the player on the module's display, and sends its own instruments,
         // a SysEx message about every eighth of a second, which takes until about 10 s in; the
@@ -107,7 +107,7 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_II_speaks_on_the_sound_blaster()
     {
-        if (TestData.Game("Wing Commander II") is not { } folder)
+        if (TestData.Game("wc2") is not { } folder)
         {
             return;
         }
@@ -115,7 +115,7 @@ public sealed class GameStartTests : IDisposable
         // at GOG's speed for the game, 8,000 cycles: since a repeated string instruction takes
         // time for each repetition, as in DOSBox, the default 4,000 loads the speech too slowly
         var machine = new Machine(folder, _saves) { Log = _log.Add, InstructionsPerSecond = 8_000_000 };
-        machine.Load("WC2.EXE");
+        machine.Load("CONFWC2.EXE");
 
         void Press(byte code, double seconds)
         {
@@ -157,13 +157,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_II_starts_a_new_game_by_mouse()
     {
-        if (TestData.Game("Wing Commander II") is not { } folder)
+        if (TestData.Game("wc2") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add, Mouse = true };
-        machine.Load("WC2.EXE");
+        machine.Load("CONFWC2.EXE");
         RunUntil(machine, () => machine.Time.TotalSeconds >= 65, 70L * machine.InstructionsPerSecond);
 
         // the game polls the driver for the pointer's place (function 3) every frame: into the
@@ -186,13 +186,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_II_signs_on_a_pilot_and_flies()
     {
-        if (TestData.Game("Wing Commander II") is not { } folder)
+        if (TestData.Game("wc2") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add };
-        machine.Load("WC2.EXE");
+        machine.Load("CONFWC2.EXE");
 
         void Wait(double seconds) => machine.Run((long)(machine.InstructionsPerSecond * seconds));
         void Press(byte code, double seconds = 0.15)
@@ -298,13 +298,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_goes_by_keyboard_to_the_barracks()
     {
-        if (TestData.Game("Wing Commander") is not { } folder)
+        if (TestData.Game("wc1") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add };
-        machine.Load("WC.EXE");
+        machine.Load("CONFWC1.EXE");
 
         // a key goes down and, a tenth of a second later, comes up, as a quick press does
         void Press(byte code)
@@ -336,13 +336,13 @@ public sealed class GameStartTests : IDisposable
     [Fact]
     public void Wing_Commander_takes_a_name_at_its_top_score_prompt()
     {
-        if (TestData.Game("Wing Commander") is not { } folder)
+        if (TestData.Game("wc1") is not { } folder)
         {
             return;
         }
 
         var machine = new Machine(folder, _saves) { Log = _log.Add };
-        machine.Load("WC.EXE");
+        machine.Load("CONFWC1.EXE");
 
         // a quick press, then a moment before the next, as a typist's
         void Press(byte code)

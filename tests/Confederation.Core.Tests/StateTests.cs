@@ -18,7 +18,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void A_state_carries_on_the_music_on_a_roland()
     {
-        if (TestData.Game("Wing Commander") is not { } folder || TestData.Mt32Roms() is not { } roms)
+        if (TestData.Game("wc1") is not { } folder || TestData.Mt32Roms() is not { } roms)
         {
             return;
         }
@@ -32,7 +32,7 @@ public sealed class StateTests : IDisposable
         }
 
         var original = Make();
-        original.Load("WC.EXE");
+        original.Load("CONFWC1.EXE");
         Run(original, 18);
         AssertCarriesOn(original, Make, seconds: 4, loud: 100);
     }
@@ -44,14 +44,14 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void A_state_carries_on_the_speech_on_a_sound_blaster()
     {
-        if (TestData.Game("Wing Commander II") is not { } folder)
+        if (TestData.Game("wc2") is not { } folder)
         {
             return;
         }
 
         var log = new List<string>();
         var original = new Machine(folder, _saves) { Log = log.Add };
-        original.Load("WC2.EXE");
+        original.Load("CONFWC2.EXE");
 
         // the introduction's first scene, as in the game start tests
         Run(original, 65);
