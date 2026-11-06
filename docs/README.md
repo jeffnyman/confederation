@@ -56,5 +56,8 @@ games.
 14. [W.C.A.T.](wcat.md): a fan overhaul played through its own launcher, the game's data mounted
     where it expects it rather than copied, and batch files run by a shell in C# between
     programs, as DOSBox runs them, rather than by COMMAND.COM.
+15. [*Wing Commander III*](wing-commander-iii.md): GOG's CD image and folders, and Origin's
+    loader on the DPMI host as far as the game's first file on the CD: DOS's list of lists, and
+    a directory of its own.
 
 More notes will follow as the work does, and each game as it comes up.

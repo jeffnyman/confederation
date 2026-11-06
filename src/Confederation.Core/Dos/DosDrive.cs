@@ -176,6 +176,40 @@ internal sealed class DosDrive(string gameFolder, string saveFolder)
         return true;
     }
 
+    /// <summary>
+    /// Makes a directory, in the save folder: false when something of that name is there
+    /// already, or its parent isn't.
+    /// </summary>
+    public bool MakeDirectory(string[] parts)
+    {
+        if (parts.Length == 0 || DirectoryExists(parts) || FindFile(parts) is not null || !DirectoryExists(parts[..^1]))
+        {
+            return false;
+        }
+
+        _deleted.Remove(Join(parts));
+        Directory.CreateDirectory(Path.Combine(_saveFolder, Path.Combine(parts)));
+        return true;
+    }
+
+    /// <summary>
+    /// Removes an empty directory a program made: false for one that isn't there, isn't
+    /// empty, or is the game's own, which isn't changed.
+    /// </summary>
+    public bool RemoveDirectory(string[] parts)
+    {
+        if (parts.Length == 0
+            || Find(_saveFolder, parts) is not { } saved || !Directory.Exists(saved)
+            || ReadOnly(parts).Any(Directory.Exists)
+            || List(parts).Any())
+        {
+            return false;
+        }
+
+        Directory.Delete(saved);
+        return true;
+    }
+
     public bool ChangeDirectory(string[] parts)
     {
         if (!DirectoryExists(parts))

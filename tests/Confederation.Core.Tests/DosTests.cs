@@ -74,6 +74,35 @@ public sealed class DosTests : IDisposable
     }
 
     [Fact]
+    public void A_directory_is_made_in_the_save_folder_and_removed()
+    {
+        // Wing Commander III makes C:\WC3 for its settings and saves:
+        //   push cs; pop ds
+        //   mov ah, 39h; mov dx, name; int 21h; jc fail        made
+        //   mov ah, 39h; mov dx, name; int 21h; jnc fail       not again:
+        //   cmp ax, 5; jne fail                                access denied
+        //   mov ah, 3Ah; mov dx, name; int 21h; jc fail        removed
+        //   mov ax, 4C00h; int 21h
+        //   fail: mov ax, 4C01h; int 21h
+        var machine = Start(
+        [
+            0x0E, 0x1F,
+            0xB4, 0x39, 0xBA, 0x2C, 0x00, 0xCD, 0x21, 0x72, 0x1C,
+            0xB4, 0x39, 0xBA, 0x2C, 0x00, 0xCD, 0x21, 0x73, 0x13,
+            0x3D, 0x05, 0x00, 0x75, 0x0E,
+            0xB4, 0x3A, 0xBA, 0x2C, 0x00, 0xCD, 0x21, 0x72, 0x05,
+            0xB8, 0x00, 0x4C, 0xCD, 0x21,
+            0xB8, 0x01, 0x4C, 0xCD, 0x21,
+            .. "C:\\WC3\0"u8,
+        ]);
+
+        Assert.Equal(0, machine.ExitCode);
+        Assert.Contains(@"21/39 make directory C:\WC3: made", _log);
+        Assert.False(Directory.Exists(Path.Combine(_saves, "WC3")));
+        Assert.False(Directory.Exists(Path.Combine(_game, "WC3")));
+    }
+
+    [Fact]
     public void The_expanded_memory_manager_is_found_by_its_name()
     {
         //   mov ax, 3567h; int 21h            ES:BX = the INT 67h vector

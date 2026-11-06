@@ -86,6 +86,8 @@ internal sealed partial class DosServices
     {
         switch (function)
         {
+            case 0x39: MakeDirectory(cpu); return true;
+            case 0x3A: RemoveDirectory(cpu); return true;
             case 0x3B: ChangeDirectory(cpu); return true;
             case 0x3C: Create(cpu, replace: true); return true;
             case 0x3D: Open(cpu); return true;
@@ -321,6 +323,39 @@ internal sealed partial class DosServices
         {
             Fail(2);
         }
+    }
+
+    private void MakeDirectory(Registers cpu)
+    {
+        string name = NameAt(cpu.Ds, cpu.Dx);
+        bool made = drive.Parse(name) is { } parts && drive.MakeDirectory(parts);
+        if (made)
+        {
+            Ok();
+        }
+        else
+        {
+            // access denied: DOS's answer when it's there already, as well as when it can't be made
+            Fail(drive.Parse(name) is { } p && p.Length > 0 && drive.DirectoryExists(p[..^1]) ? 5 : 3);
+        }
+
+        machine.Trace($"21/39 make directory {name}: {(made ? "made" : "failed")}");
+    }
+
+    private void RemoveDirectory(Registers cpu)
+    {
+        string name = NameAt(cpu.Ds, cpu.Dx);
+        bool removed = drive.Parse(name) is { } parts && drive.RemoveDirectory(parts);
+        if (removed)
+        {
+            Ok();
+        }
+        else
+        {
+            Fail(5);
+        }
+
+        machine.Trace($"21/3A remove directory {name}: {(removed ? "removed" : "failed")}");
     }
 
     private void Rename(Registers cpu)

@@ -57,7 +57,10 @@ playing. The reasoning behind the plan is in [docs/emulate-or-reimplement.md](do
      game's own data mounted where W.C.A.T. expects it, beside the launcher, rather than copied;
      and the batch files it starts the game with, run by a shell in C#
      ([docs/wcat.md](docs/wcat.md)).
-   - **9d. *Wing Commander III*** as far as it gets before it needs the CD.
+   - **9d. *Wing Commander III*** as far as it gets before it needs the CD. *Done*: Origin's
+     loader runs on the host, loads the game into extended memory, makes `C:\WC3`, and stops
+     at its first file on the CD, `GLOBALS.IFF`
+     ([docs/wing-commander-iii.md](docs/wing-commander-iii.md)).
 10. **CD-ROM.** The game's ISO image, with MSCDEX-style file access.
 11. **Speed and video.** The CPU fast enough for a 486-class game, and its full-motion video.
 
