@@ -64,9 +64,9 @@ key just pressed. **Observed** in `WC.EXE` and `WC2.EXE`:
   one of two routines and then show a number in the cockpit, which fits a guide's "cycles the
   enemy's intelligence" (**to confirm**). The rest is **to find out**.
 
-**Played** in Confederation, in Wing Commander: the ship can't be destroyed, and Alt+Del, and
-Alt+Q in its place, destroy the target. Without a target, or without the cheats, Del is only the
-roll, which looks like the cheat failing. Wing Commander II is still to play.
+**Played** in Confederation, in both games: the ship can't be destroyed, and Alt+Del, and Alt+Q
+in its place, destroy the target. Without a target, or without the cheats, Del is only the roll,
+which looks like the cheat failing. Alt+W, Wing Commander II's Alt+Ins, is still to play.
 
 ## Keys beside Alt
 
