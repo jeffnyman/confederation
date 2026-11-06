@@ -25,6 +25,7 @@ internal sealed unsafe class SdlMenu : IDisposable
         _settings = settings;
         SdlException.ThrowIfFalse(SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO | SDL_InitFlags.SDL_INIT_EVENTS), "SDL_Init");
         _window = SdlException.ThrowIfNull(SDL_CreateWindow("Confederation", 800, 500, SDL_WindowFlags.SDL_WINDOW_RESIZABLE), "SDL_CreateWindow");
+        SdlWindow.SetIcon(_window, GameIcons.Confederation);
         _selected = Math.Max(0, Array.FindIndex(Games.Known, Playable));
     }
 

@@ -30,8 +30,17 @@ public sealed class IconTests
     }
 
     [Fact]
-    public void A_program_the_player_does_not_know_has_none()
-        => Assert.Empty(GameIcons.For(new Game("", "OTHER.EXE", "OTHER", 4000, null)));
+    public void The_player_has_its_own_for_the_menu_and_programs_it_does_not_know()
+    {
+        // 32 bits a pixel, with their own alpha: see-through around the W
+        var own = GameIcons.Confederation;
+        Assert.Equal([16, 24, 32, 48, 64, 128, 256], own.Select(image => image.Width).Order());
+        var big = own.Single(image => image.Width == 256);
+        Assert.Equal(0u, big.Pixels[0] >> 24);
+        Assert.Contains(big.Pixels, pixel => pixel >> 24 == 0xFF);
+
+        Assert.Equal(own.Count, GameIcons.For(new Game("", "OTHER.EXE", "OTHER", 4000, null)).Count);
+    }
 
     [Fact]
     public void A_bitmap_takes_its_colors_and_its_shape_from_the_file()

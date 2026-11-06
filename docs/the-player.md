@@ -95,6 +95,14 @@ padded to four bytes. These icons have bitmaps of 24 bits a pixel at 32 and 48 p
 their shape from the mask, and a PNG at 256, which a window doesn't need. The window takes the
 largest picture as its icon and the others as its smaller sizes, and the system picks among them.
 
+The player has an icon of its own too (`Icons/confederation.ico`): the program's, in Explorer,
+the menu's, and the window's for a program it doesn't know. It's the W from *Wing Commander*'s
+logo, with its speed lines. The whole logo is two lines of text, twice as wide as it's tall, and
+at 32 pixels it was a smudge; the W alone still reads at 16. The logo's black background was made
+see-through, fading with the brightness so the edges don't fringe, and the icon was saved at seven
+sizes from 16 to 256 as 32-bit bitmaps with their own alpha. A writer can leave the mask out of
+those, as this one did, since the alpha gives the shape; the reader takes them either way.
+
 ## The keyboard
 
 SDL reports each key by its USB HID *usage*, a number for the key's place on the keyboard. The PC

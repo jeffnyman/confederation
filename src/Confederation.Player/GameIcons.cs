@@ -5,7 +5,7 @@ internal sealed record IconImage(int Width, int Height, uint[] Pixels);
 
 /// <summary>
 /// The games' icons, built into the player (<c>Icons/</c>, one for each program it knows by
-/// name), and a reader for the Windows icon files they come in.
+/// name), the player's own, and a reader for the Windows icon files they come in.
 /// </summary>
 /// <remarks>
 /// An <c>.ico</c> file is a directory of pictures of one icon at several sizes. Each is either a
@@ -17,17 +17,23 @@ internal sealed record IconImage(int Width, int Height, uint[] Pixels);
 /// </remarks>
 internal static class GameIcons
 {
-    /// <summary>The icon for a game, as pictures at its sizes; none for a program the player doesn't know.</summary>
+    /// <summary>
+    /// The player's own icon: the W of <i>Wing Commander</i>'s logo, with its speed lines. It's
+    /// the program's icon too (<c>ApplicationIcon</c>), and the menu's.
+    /// </summary>
+    public static IReadOnlyList<IconImage> Confederation => Built("confederation");
+
+    /// <summary>The icon for a game, as pictures at its sizes; the player's own for a program it doesn't know.</summary>
     public static IReadOnlyList<IconImage> For(Game game)
     {
         // The Secret Missions run Wing Commander's own program, and share its icon
         var known = Games.Known.FirstOrDefault(known => string.Equals(known.Program, game.Program, StringComparison.OrdinalIgnoreCase));
-        if (known is null)
-        {
-            return [];
-        }
+        return known is null ? Confederation : Built(known.Name);
+    }
 
-        using var stream = typeof(GameIcons).Assembly.GetManifestResourceStream($"Icons/{known.Name}.ico");
+    private static IReadOnlyList<IconImage> Built(string name)
+    {
+        using var stream = typeof(GameIcons).Assembly.GetManifestResourceStream($"Icons/{name}.ico");
         if (stream is null)
         {
             return [];
@@ -81,13 +87,15 @@ internal static class GameIcons
         int colorStride = ((width * bits) + 31) / 32 * 4;
         int maskStride = (width + 31) / 32 * 4;
         int colors = 40, mask = colors + (colorStride * height);
-        if (mask + (maskStride * height) > dib.Length)
+        if (mask > dib.Length)
         {
             return null;
         }
 
         // 32-bit pictures carry their own alpha; 24-bit ones, and 32-bit ones whose alpha was left
-        // at nothing everywhere, take their shape from the mask
+        // at nothing everywhere, take their shape from the mask. Some writers leave the mask out
+        // of a 32-bit picture, whose alpha makes it needless: then it has to have its alpha.
+        bool hasMask = mask + (maskStride * height) <= dib.Length;
         bool ownAlpha = false;
         if (bits == 32)
         {
@@ -98,6 +106,11 @@ internal static class GameIcons
                     ownAlpha = dib[colors + (y * colorStride) + (x * 4) + 3] != 0;
                 }
             }
+        }
+
+        if (!ownAlpha && !hasMask)
+        {
+            return null;
         }
 
         var pixels = new uint[width * height];

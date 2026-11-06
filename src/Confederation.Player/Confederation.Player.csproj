@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>confederation</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Icons\confederation.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- SDL3 ships native libraries for every platform; a desktop player does not need the Android
@@ -18,7 +19,7 @@
     <PackageReference Include="ppy.SDL3-CS" />
   </ItemGroup>
 
-  <!-- the games' icons, for their windows: read by name, as Icons/wc1.ico -->
+  <!-- the games' icons, and the player's own, for their windows: read by name, as Icons/wc1.ico -->
   <ItemGroup>
     <EmbeddedResource Include="Icons\*.ico" LogicalName="Icons/%(Filename)%(Extension)" />
   </ItemGroup>

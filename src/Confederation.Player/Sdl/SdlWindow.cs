@@ -140,7 +140,10 @@ internal sealed unsafe class SdlWindow : IDisposable
     /// Gives the window an icon, in the title bar and the taskbar: the largest picture, with the
     /// others as its smaller sizes, for the system to choose among.
     /// </summary>
-    public void SetIcon(IReadOnlyList<IconImage> images)
+    public void SetIcon(IReadOnlyList<IconImage> images) => SetIcon(_window, images);
+
+    /// <summary>Gives a window an icon: the player's own windows, the game's and the menu's.</summary>
+    public static void SetIcon(SDL_Window* window, IReadOnlyList<IconImage> images)
     {
         if (images.Count == 0)
         {
@@ -160,7 +163,7 @@ internal sealed unsafe class SdlWindow : IDisposable
             }
 
             // an icon is a nicety: a system that won't take one is no reason to stop
-            SDL_SetWindowIcon(_window, icon);
+            SDL_SetWindowIcon(window, icon);
         }
         finally
         {
