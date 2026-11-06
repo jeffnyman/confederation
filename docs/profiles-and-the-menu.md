@@ -51,7 +51,7 @@ player:
 ```
 
 A profile keeps only what differs from the defaults: speed (`cycles`), `music`, `sound`,
-`joystick`, `mouse`, `scale`, `fullscreen`, `squarePixels` and `cheats` ([cheats](cheats.md)). Anything not in it is the default,
+`joystick`, `mouse`, `mouseSpeed`, `scale`, `fullscreen`, `squarePixels` and `cheats` ([cheats](cheats.md)). Anything not in it is the default,
 so a new default reaches every game that hasn't chosen otherwise.
 
 **What's remembered by itself, and what isn't.** A game's folder is remembered the first time it's

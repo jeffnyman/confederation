@@ -136,6 +136,12 @@ public sealed class ProfileTests : IDisposable
         Assert.Equal(5000, profile.Cycles);
         Assert.Equal(5, profile.Scale);
 
+        Assert.Equal(0, Run("wc1", "--mouse-speed", "50", "--remember"));
+        profile = Settings.Load(SettingsPath).ProfileOf(Games.Wc1);
+        Assert.Equal(50, profile.MouseSpeed);
+        Assert.Equal("cycles 5000, no sound, mouse speed 50%, scale 5", profile.ToString());
+        Assert.ThrowsAny<Exception>(() => Run("wc1", "--mouse-speed", "5"));
+
         Assert.Equal(0, Run("wc1", "--forget"));
         Assert.True(Settings.Load(SettingsPath).ProfileOf(Games.Wc1).IsEmpty);
         Assert.Equal(Wc1, Settings.Load(SettingsPath).FolderOf(Games.Wc1));

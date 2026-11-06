@@ -25,6 +25,9 @@ internal sealed class PlayerOptions
     /// <summary>Whether the host's mouse is the machine's mouse, once a click in the window captures it.</summary>
     public bool Mouse { get; init; } = true;
 
+    /// <summary>The mouse's speed: 1, and moving across the picture moves across the game's screen.</summary>
+    public double MouseSpeed { get; init; } = 1;
+
     /// <summary>The file Ctrl+F5 saves the machine's state to and Ctrl+F9 loads it from; none, and they do nothing.</summary>
     public string? StatePath { get; init; }
 
@@ -89,6 +92,9 @@ internal sealed unsafe class SdlPlayer : IDisposable
     {
         _machine = machine;
         _options = options;
+        // the captured mouse's motion as the desktop's pointer would move, not in the mouse's raw
+        // counts, which depend on its resolution: the motion is then in the window's units
+        SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "1");
         SdlException.ThrowIfFalse(
             SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO | SDL_InitFlags.SDL_INIT_EVENTS | SDL_InitFlags.SDL_INIT_GAMEPAD),
             "SDL_Init");
@@ -214,6 +220,18 @@ internal sealed unsafe class SdlPlayer : IDisposable
         return running;
     }
 
+    /// <summary>
+    /// Mickeys for a point of the host mouse's motion. The DOS mouse driver, by default, counts
+    /// 640 of its pixels across a 320-wide mode and moves one for a mickey across, and 200 down
+    /// at two mickeys each: so 640 mickeys across the picture and 400 down take the pointer from
+    /// edge to edge. Spread over the picture as shown, however big, and times the speed asked.
+    /// </summary>
+    private (float X, float Y) MouseScale()
+    {
+        var (width, height) = _window.PictureInWindow;
+        return ((float)(640 / width * _options.MouseSpeed), (float)(400 / height * _options.MouseSpeed));
+    }
+
     private void Present() => _window.Present(_machine.DisplayWidth, _machine.DisplayHeight, _machine.Render);
 
     private void Pump()
@@ -255,8 +273,10 @@ internal sealed unsafe class SdlPlayer : IDisposable
                 case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                     if (_window.MouseCaptured)
                     {
-                        _mouseRestX += sdlEvent.motion.xrel;
-                        _mouseRestY += sdlEvent.motion.yrel;
+                        // scaled to the picture's size in the window, not passed on pixel for pixel
+                        var (scaleX, scaleY) = MouseScale();
+                        _mouseRestX += sdlEvent.motion.xrel * scaleX;
+                        _mouseRestY += sdlEvent.motion.yrel * scaleY;
                         int dx = (int)_mouseRestX, dy = (int)_mouseRestY;
                         _mouseRestX -= dx;
                         _mouseRestY -= dy;

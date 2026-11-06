@@ -162,12 +162,26 @@ And the mouse moves in **mickeys**, its own steps of about a two hundredth of an
 driver turns into its pixels at 8 mickeys to 8 pixels across and 16 to 8 down, so the pointer
 moves half as fast down as across, as on the real driver.
 
-The player passes the host's mouse through **as motion, not as a place**: one host pixel of motion
-is one mickey. The desktop's pointer can't be the game's, because the game draws its own and
-moves it at its own pace. So a click in the window **captures** the mouse, as DOSBox does: the
+The player passes the host's mouse through **as motion, not as a place**. The desktop's pointer
+can't be the game's, because the game draws its own and moves it at its own pace. So a click in the window **captures** the mouse, as DOSBox does: the
 desktop's pointer disappears, and its motion and its left and right buttons are the PC mouse's.
 That first click isn't passed on. **Ctrl+F10** gives the mouse back, as does leaving the window.
 `--no-mouse` leaves the PC without one.
+
+**The motion is scaled to the picture.** At first one host pixel of motion was one mickey. But
+the game's screen is 320 by 200, and the window is several times that, and a full screen more
+again: a small move of the hand swept the pointer across the game's screen, and the bigger the
+window, the worse. Now the motion is spread over the picture as it's shown: by the driver's
+defaults, 640 mickeys take the pointer across and 400 down, so that's what moving across the
+picture gives, however big it is. The pointer then moves under the hand as the desktop's would
+over the same picture. For that, SDL is asked to apply the system's pointer speed to the captured
+mouse (`SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE`); otherwise the motion comes in the mouse's own
+counts, which depend on its resolution. **Observed:** in a window at scale 3, the picture is 960
+points across, and a point of motion is two thirds of a mickey.
+
+Games that read the motion itself, as a stick, rather than the pointer, have their own feel for
+it, and so do players. `--mouse-speed <percent>` scales it further: 50 for half as fast, 200 for
+twice. It's kept in a profile like the other options.
 
 ## Checking it without a player
 

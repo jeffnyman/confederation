@@ -21,6 +21,12 @@ internal sealed class Profile
 
     public bool? Mouse { get; set; }
 
+    /// <summary>
+    /// How far the game's mouse goes for the host's, in percent: at 100, the mouse moved across
+    /// the picture moves the game's pointer across its screen, whatever the window's size.
+    /// </summary>
+    public int? MouseSpeed { get; set; }
+
     public int? Scale { get; set; }
 
     public bool? Fullscreen { get; set; }
@@ -36,7 +42,7 @@ internal sealed class Profile
     /// <summary>Whether nothing is set.</summary>
     [JsonIgnore]
     public bool IsEmpty => Cycles is null && Music is null && Sound is null && Joystick is null && Mouse is null
-        && Scale is null && Fullscreen is null && SquarePixels is null && Cheats is null;
+        && MouseSpeed is null && Scale is null && Fullscreen is null && SquarePixels is null && Cheats is null;
 
     /// <summary>The values set in another profile, over this one's.</summary>
     public void Take(Profile other)
@@ -46,6 +52,7 @@ internal sealed class Profile
         Sound = other.Sound ?? Sound;
         Joystick = other.Joystick ?? Joystick;
         Mouse = other.Mouse ?? Mouse;
+        MouseSpeed = other.MouseSpeed ?? MouseSpeed;
         Scale = other.Scale ?? Scale;
         Fullscreen = other.Fullscreen ?? Fullscreen;
         SquarePixels = other.SquarePixels ?? SquarePixels;
@@ -77,6 +84,11 @@ internal sealed class Profile
         Flag(Sound, "sound");
         Flag(Joystick, "joystick");
         Flag(Mouse, "mouse");
+        if (MouseSpeed is { } speed)
+        {
+            parts.Add($"mouse speed {speed}%");
+        }
+
         if (Scale is { } scale)
         {
             parts.Add($"scale {scale}");

@@ -56,6 +56,25 @@ internal sealed unsafe class SdlWindow : IDisposable
     /// <summary>Shows the picture's pixels square, rather than in the 4:3 shape a monitor gave them.</summary>
     public bool SquarePixels { get; private set; }
 
+    /// <summary>
+    /// The picture's size in the window, in the window's own units (which the mouse's motion is
+    /// in, and which are fewer than its pixels on a high-resolution screen).
+    /// </summary>
+    public (float Width, float Height) PictureInWindow
+    {
+        get
+        {
+            int windowWidth, windowHeight;
+            if (!SDL_GetWindowSize(_window, &windowWidth, &windowHeight) || windowWidth <= 0 || windowHeight <= 0)
+            {
+                return (320, 200);
+            }
+
+            var picture = Fit(windowWidth, windowHeight);
+            return (picture.w, picture.h);
+        }
+    }
+
     /// <summary>Whether the mouse is the game's: hidden, held in the window, and read as motion rather than a place.</summary>
     public bool MouseCaptured { get; private set; }
 

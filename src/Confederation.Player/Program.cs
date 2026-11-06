@@ -126,6 +126,9 @@ internal static class Program
                 case "--mouse" or "--no-mouse":
                     given.Mouse = args[i] == "--mouse";
                     break;
+                case "--mouse-speed":
+                    given.MouseSpeed = Number("--mouse-speed", "a speed in percent, from 10 to 400", 10, 400);
+                    break;
                 case "--cheats" or "--no-cheats":
                     given.Cheats = args[i] == "--cheats";
                     break;
@@ -350,6 +353,7 @@ internal static class Program
                     Joystick = profile.Joystick ?? true,
                     Sound = sound,
                     Mouse = profile.Mouse ?? true,
+                    MouseSpeed = (profile.MouseSpeed ?? 100) / 100.0,
                     StatePath = statePath,
                     StandIns = cheats ? new StandInKeys(Games.CheatKeys(game.Series)) : StandInKeys.None,
                 };
@@ -444,6 +448,8 @@ internal static class Program
               --no-joystick      no joystick on the game port, even with a gamepad plugged in
               --no-mouse         no mouse: the games' pointers move by keyboard or joystick
               --no-sound         no sound
+              --mouse-speed <n>  the mouse's speed in percent (100): at 100, moving across the
+                                 picture moves the game's pointer across its screen
                                  (--joystick, --mouse, --sound: back on)
               --cheats           the games' own cheats: the ship can't be destroyed, Alt+Q (Alt+Del)
                                  destroys the target, and in WC2 Alt+W (Alt+Ins) the enemy
