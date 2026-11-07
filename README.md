@@ -1,10 +1,17 @@
-# Confederation
+<h1 align="center">
+  <img src="https://raw.githubusercontent.com/jeffnyman/confederation/main/assets/confederation-title.png" width="372" alt="Confederation">
+</h1>
 
 **Confederation** plays the original DOS *Wing Commander* games, as they were. It's a C# DOS PC
 emulator built for these games alone, not to be a whole PC: you pick a game and it plays, at the
 speed it was meant to run, with modern controls and the sound it was meant to have.
 
-![Wing Commander's title](docs/images/wc1-title.png) ![Wing Commander II's cockpit in flight](docs/images/wc2-cockpit.png)
+<table>
+<tr>
+<td align="center" valign="top"><img src="https://raw.githubusercontent.com/jeffnyman/confederation/main/assets/screenshots/wc1-title.png" width="320" alt="Wing Commander's title"><br>Wing Commander</td>
+<td align="center" valign="top"><img src="https://raw.githubusercontent.com/jeffnyman/confederation/main/assets/screenshots/wc2-cockpit.png" width="320" alt="Wing Commander II's cockpit in flight"><br>Wing Commander II</td>
+</tr>
+</table>
 
 ## Why
 
