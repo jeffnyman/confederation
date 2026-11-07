@@ -20,9 +20,10 @@
   </ItemGroup>
 
   <!-- the games the repository includes, by Electronic Arts' permission (see NOTICE.md), beside
-       the player, where it plays them from when they aren't set up elsewhere: games/wc1, games/wc2 -->
+       the player, where it plays them from when they aren't set up elsewhere: games/wc1, games/wc2,
+       and their notice, games/NOTICE.md, which goes with them into the downloads -->
   <ItemGroup>
-    <None Include="..\..\games\**\*" Exclude="..\..\games\**\*.md" LinkBase="games" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="..\..\games\**\*" LinkBase="games" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <!-- the games' icons, and the player's own, for their windows: read by name, as Icons/wc1.ico -->

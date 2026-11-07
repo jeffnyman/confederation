@@ -19,7 +19,7 @@ games.
 2. [The games](the-games.md): what each *Wing Commander* release is, and what can be learned about
    its needs just by inspecting its files.
 3. [Project layout](project-layout.md): how the repository is organized, and why: a core library,
-   a player, strict builds, and tests that run with or without the games.
+   a player, strict builds, the included games and the tests that use them, and the downloads.
 4. [The x86 CPU](the-x86-cpu.md): why a 386, how the processor is built, how it was tested
    against 1.7 million instructions captured from a real chip, and what the chip does that its
    manuals don't say.

@@ -66,3 +66,29 @@ above the test binary), and pass without checking when it isn't there.
 `.github/workflows/build.yml` builds, tests and packs on Windows, Linux and macOS on every push to
 `main` and every pull request, the same as Retrograde. macOS is advisory, because GitHub's hosted
 Macs are sometimes unavailable.
+
+## Releases
+
+Confederation is for people who want to see the original games, not only for developers, so a
+release is something to download and run, with no .NET to install.
+`.github/workflows/publish.yml` builds one for each of Windows, Linux, and macOS on Apple silicon
+and on Intel. A tag such as `v0.1.0` makes a GitHub release of them, with
+`.github/release-notes.md` as its notes; a version with a hyphen, such as `v0.1.0-alpha`, is a
+prerelease. Run by hand, the workflow only builds the downloads, as the run's artifacts, to try
+one before tagging.
+
+Each download is a folder:
+
+- **`confederation`** (`confederation.exe` on Windows), the player as a single program, with the
+  .NET runtime and SDL inside it, compressed: about 40 MB. It's not trimmed. Trimming drops what
+  the compiler can't see used, and save states reach every field of the machine by reflection,
+  which it can't see.
+- **`games/`**, the included games, with their notice, which the build copies beside the player
+  and the player plays from.
+- **`README.md`**, **`NOTICE.md`** and **`LICENSE`**.
+
+The programs aren't signed, so Windows and macOS ask before running them the first time; the
+release notes say how to let them. Built locally the same way (`dotnet publish
+src/Confederation.Player -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+-p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true`), the Windows
+program played all five included games from its own copy, headless (observed).
