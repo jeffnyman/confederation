@@ -54,6 +54,7 @@ internal static class Program
         bool list = false;
         bool remember = false;
         bool forget = false;
+        bool forgetFolder = false;
 
         // the options a profile can keep, as given here: they win over the profile for this run
         var given = new Profile();
@@ -95,6 +96,9 @@ internal static class Program
                     break;
                 case "--forget":
                     forget = true;
+                    break;
+                case "--forget-folder":
+                    forgetFolder = true;
                     break;
                 case "--args":
                     arguments = i + 1 < args.Length ? args[++i] : throw new UsageException("--args needs the program's arguments");
@@ -191,6 +195,23 @@ internal static class Program
             // the ROMs' folder is remembered once given, as the games' folders are
             settings.Mt32Roms = mt32Roms;
             changed = true;
+        }
+
+        if (forgetFolder)
+        {
+            // only by a short name: a folder given here would be remembered again at once
+            var forgetting = (gameName is not null ? Games.Named(gameName)?.Series : null)
+                ?? throw new UsageException("--forget-folder needs a game's short name, such as wc1");
+            string from = Games.Bundled(forgetting) is not null ? $"; {forgetting.Title} plays the copy included with Confederation" : "";
+            if (settings.Forget(forgetting) is { } forgotten)
+            {
+                changed = true;
+                Console.WriteLine($"confederation: forgot {forgetting.Title}'s folder, {forgotten}{from}");
+            }
+            else
+            {
+                Console.WriteLine($"confederation: no folder was kept for {forgetting.Title}{from}");
+            }
         }
 
         if (list)
@@ -463,6 +484,10 @@ internal static class Program
               --remember         keep this run's options below as the game's own, for the game
                                  and its mission disks
               --forget           go back to the defaults for the game and its mission disks
+              --forget-folder    forget the folder the game was set up from, for the game and its
+                                 mission disks: Wing Commander and Wing Commander II then play
+                                 the copies included with Confederation (with --list, forget
+                                 and list rather than play)
               --settings <file>  the settings file (by default confederation.json in the user's
                                  application data, beside the saves)
               --args "<text>"    the program's command line arguments

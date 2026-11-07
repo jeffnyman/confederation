@@ -189,6 +189,12 @@ internal sealed class Settings
         return true;
     }
 
+    /// <summary>
+    /// Forgets where a series is, so its short name finds the copy included with Confederation,
+    /// if there is one, again. Returns the folder it had, or null when none was kept.
+    /// </summary>
+    public string? Forget(Series series) => Folders.Remove(series.Key, out var folder) ? folder : null;
+
     /// <summary>A series' profile; an empty one when none is kept.</summary>
     public Profile ProfileOf(Series series) => Profiles.TryGetValue(series.Key, out var profile) ? profile : new Profile();
 }

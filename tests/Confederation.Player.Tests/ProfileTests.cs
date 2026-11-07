@@ -107,6 +107,27 @@ public sealed class ProfileTests : IDisposable
         => Assert.Equal(0, Run("wc1"));
 
     [Fact]
+    public void A_folder_forgotten_gives_the_short_name_back_to_the_included_copy()
+    {
+        // set up from a folder of its own, which is remembered
+        Assert.Equal(0, Run(Wc1));
+        Assert.Equal(Wc1, Settings.Load(SettingsPath).FolderOf(Games.Wc1));
+
+        // forgotten, with --list, so nothing plays: the included copy is played from again
+        Assert.Equal(0, Run("sm2", "--forget-folder", "--list"));
+        var settings = Settings.Load(SettingsPath);
+        Assert.Null(settings.FolderOf(Games.Wc1));
+        Assert.Equal(Games.Bundled(Games.Wc1), Games.FolderOf(settings, Games.Wc1));
+
+        // and played, forgetting nothing more
+        Assert.Equal(0, Run("wc1", "--forget-folder"));
+
+        // only by a short name: a folder given would be remembered again at once
+        Assert.Contains("short name", Assert.ThrowsAny<Exception>(() => Run(Wc1, "--forget-folder")).Message);
+        Assert.Contains("short name", Assert.ThrowsAny<Exception>(() => Run("--forget-folder", "--list")).Message);
+    }
+
+    [Fact]
     public void A_folder_is_known_by_its_main_program()
     {
         Assert.Equal(Games.Wc1, Games.SeriesIn(Wc1));

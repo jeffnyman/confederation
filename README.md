@@ -45,7 +45,8 @@ dotnet run --project src/Confederation.Player -c Release -- "<folder of Wing Com
 ```
 
 A GOG folder of *Wing Commander* or *Wing Commander II* works the same way, and is then played in
-place of the included copy. A game's folder can also be dropped on the menu's window.
+place of the included copy; `--forget-folder` (as in `wc1 --forget-folder`) goes back to the
+included one. A game's folder can also be dropped on the menu's window.
 
 ### In the game
 

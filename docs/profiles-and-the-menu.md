@@ -23,7 +23,11 @@ The repository includes the first two, by Electronic Arts' permission
 permission asks: `CONFWC1.EXE` for `WC.EXE`, `CONFSM2.EXE`, `CONFWC2.EXE`, `CONFSO1.EXE` and
 `CONFSO2.EXE`. The player knows each program by both names. The build copies `games/` beside
 the player, and a series that isn't set up is played from there, so `wc1` plays straight away.
-A GOG folder, once given, is played instead.
+A GOG folder, once given, is played instead. Someone who gave their own copy presumably wants it,
+so the folder they gave wins. `--forget-folder`, with a game's short name, forgets it for the
+game and its mission disks, and the included copy is played again; with `--list`, it forgets and
+lists rather than plays. Only a short name will do: a folder given with it would be remembered
+again at once.
 
 Renaming was checked before anything else, because each game opens its own program file to
 read more of itself, and each holds its own name, `wc2.exe` and so on. Run side by side, the
